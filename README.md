@@ -2,8 +2,6 @@
 
 Self-contained booking flow for **Rakshan Kamalakannan / RKK Studio**.
 
-Live site (after Vercel deploy): see repository deployments.
-
 ## What this page does
 
 | Step | Behaviour |
@@ -13,11 +11,13 @@ Live site (after Vercel deploy): see repository deployments.
 | 3. Details | Name, email, phone with validation |
 | 4. UPI | Dynamic UPI deep link + QR. Status = **pending / unverified** only |
 | 5. Notify you | Optional webhook (Make/Zapier) + downloads `pending_booking_*.txt` |
-| 6. Confirm | **Manual**: you check UPI, then mark verified |
+| 6. Confirm | **Manual**: you check UPI, then mark verified (see below) |
 
-Payment is **never** auto-confirmed.
+Payment is **never** auto-confirmed. The UI only shows “confirmed” after you verify.
 
-## 1. Edit CONFIG (in `index.html` script)
+Production pricing only (test mode removed).
+
+## 1. Edit CONFIG (top of `<script>` in `index.html`)
 
 ```js
 vpa: "kkrakshan2006@okaxis",
@@ -27,8 +27,6 @@ webhookUrl: "", // Make/Zapier webhook
 defaultMeetLink: "https://meet.google.com/...",
 schedule: { /* 0=Sun .. 6=Sat windows in minutes */ }
 ```
-
-TEST mode on the page forces ₹1.
 
 ## 2. WhatsApp notify (Make.com)
 
