@@ -10,14 +10,12 @@ Self-contained booking flow for **Rakshan Kamalakannan / RKK Studio**.
 | 2. Schedule | FullCalendar + day-of-week windows (IST). Soft lock via localStorage |
 | 3. Details | Name, email, phone with validation |
 | 4. UPI | Dynamic UPI deep link + QR. Status = **pending / unverified** only |
-| 5. Notify you | Optional webhook (Make/Zapier) + downloads `pending_booking_*.txt` |
-| 6. Confirm | **Manual**: you check UPI, then mark verified (see below) |
+| 5. Notify you | Optional webhook (Make/Zapier) + FormSubmit email notify |
+| 6. Confirm | **Manual**: you check UPI, then mark verified |
 
-Payment is **never** auto-confirmed. The UI only shows “confirmed” after you verify.
+Payment is **never** auto-confirmed. No client-side file download.
 
-Production pricing only (test mode removed).
-
-## 1. Edit CONFIG (top of `<script>` in `index.html`)
+## 1. Edit CONFIG (in `booking.js`)
 
 ```js
 vpa: "kkrakshan2006@okaxis",
@@ -31,12 +29,12 @@ schedule: { /* 0=Sun .. 6=Sat windows in minutes */ }
 ## 2. WhatsApp notify (Make.com)
 
 1. Webhooks → Custom webhook → paste URL into `webhookUrl`
-2. Send WhatsApp / email with: name, email, phone, duration, date, time, amount, id
+2. Map: name, email, phone, duration, date, time, amount, id
 3. Message must say **Payment: UNVERIFIED**
 
 ## 3. Manual verification
 
-Check UPI app → email client Meet link → optional `payment_status.json`:
+Check UPI app → send client Meet link → optional `payment_status.json`:
 
 ```json
 { "id": "RKK-XXXX", "status": "verified" }
@@ -45,5 +43,6 @@ Check UPI app → email client Meet link → optional `payment_status.json`:
 ## Files
 
 - `index.html` — booking UI
+- `booking.js` — app logic (no auto file download)
 - `vercel.json` — static config
 - `payment_status.example.json` — sample verification file
