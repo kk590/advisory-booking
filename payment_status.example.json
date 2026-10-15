@@ -1,6 +1,6 @@
 {
-  "id": "RKK-REPLACE-WITH-REAL-BOOKING-ID",
-  "status": "verified",
-  "verifiedAt": "2026-10-11T18:00:00+05:30",
-  "note": "Rename this file to payment_status.json on your host after you confirm the UPI payment. The booking page polls it every 4 seconds."
+  "txnId": "1713164829",
+  "id": "RKK-XXXX",
+  "status": "PAID",
+  "note": "Match txnId or id from the pending booking; page polls every 4s"
 }
