@@ -124,7 +124,7 @@
         const act = btn.dataset.act;
         const row = window.__adminList[i];
         if(!row) return;
-        if(act === "confirm") setStatus(row, "PAID");
+        if(act === "confirm") setStatus(row, "CONFIRMED");
         if(act === "reject") setStatus(row, "REJECTED");
       });
     });
@@ -161,7 +161,7 @@
     $("#statusSnippet").textContent = JSON.stringify({
       txnId: row.txnId || undefined,
       id: row.bookingId || row.id || undefined,
-      status: status === "PAID" ? "PAID" : status
+      status: status === "CONFIRMED" ? "CONFIRMED" : status
     }, null, 2);
 
     loadPending();

@@ -86,6 +86,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
           <select id="statusFilter">
             <option value="">All</option>
             <option value="PENDING">PENDING</option>
+            <option value="CONFIRMED">CONFIRMED</option>
             <option value="PAID">PAID</option>
             <option value="REJECTED">REJECTED</option>
           </select>
@@ -120,8 +121,8 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
     <section class="card">
       <h3>Manual confirm helper</h3>
-      <p class="hint">After matching UPI, set status to PAID here (local). For the client page to auto-advance, host a file:</p>
-      <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "PAID" }</div>
+      <p class="hint">After matching UPI, set status to CONFIRMED here. For the client page to auto-advance, host a file:</p>
+      <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "CONFIRMED" }</div>
       <p class="hint" style="margin-top:8px">as <code>payment_status.json</code> on the booking site.</p>
     </section>
   </div>
