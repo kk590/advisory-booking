@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>RKK Admin — Booking Trace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{--canvas:#050505;--charcoal:#111113;--surface:#1a1a1c;--border:#333336;--text:#f4f4f5;--muted:#a1a1aa;--primary:#D4AF37;--gold:#FFFDD0;--on-primary:#050505;--error:#ffb4ab;--ok:#6ee7b7;--warn:#fbbf24}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased}
+header{border-bottom:1px solid var(--border);background:rgba(5,5,5,.92);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
+.header-inner{max-width:960px;margin:0 auto;padding:0 1.25rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.brand{font-family:'Syne',sans-serif;font-weight:700;font-size:15px}
+.brand span{color:var(--primary);font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-top:2px;font-family:'JetBrains Mono',monospace;font-weight:500}
+main{max-width:960px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:1.25rem}
+.card{background:var(--charcoal);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.25rem}
+.card h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--primary);margin-bottom:12px}
+label{display:flex;flex-direction:column;gap:6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+input,select{background:var(--canvas);border:1px solid var(--border);color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--primary)}
+.row{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:640px){.row.cols-3{grid-template-columns:1fr 1fr auto}.row.cols-2{grid-template-columns:1fr 1fr}}
+.btn{border:none;padding:10px 16px;font-family:inherit;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--primary);color:var(--on-primary)}
+.btn.primary:hover{background:#c19b2e}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn.ghost:hover{border-color:var(--primary);color:var(--primary)}
+.btn.ok{background:rgba(110,231,183,.15);color:var(--ok);border:1px solid rgba(110,231,183,.35)}
+.btn.danger{background:rgba(255,180,171,.1);color:var(--error);border:1px solid rgba(255,180,171,.3)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.badge{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--border)}
+.badge.pending{color:var(--warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+.badge.paid,.badge.confirmed{color:var(--ok);border-color:rgba(110,231,183,.4);background:rgba(110,231,183,.08)}
+.badge.rejected{color:var(--error);border-color:rgba(255,180,171,.4);background:rgba(255,180,171,.08)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:10px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:hover td{background:rgba(212,175,55,.04)}
+.mono{font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);padding:1.5rem 0;text-align:center;font-size:12px}
+#gate{max-width:360px;margin:12vh auto;padding:1.5rem}
+.err{color:var(--error);font-size:12px;min-height:16px;margin-top:8px}
+.hint{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+.trace{background:var(--canvas);border:1px solid var(--border);padding:10px 12px;font-size:11px;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--gold)}
+.cfg-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.cfg-row label{flex:1;min-width:160px}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">RKK Admin<span>BOOKING TRACE // OWNER ONLY</span></div>
+    <button type="button" class="btn ghost" id="btnLogout" style="display:none">Lock</button>
+  </div>
+</header>
+<main>
+  <section id="gate" class="card">
+    <h3>Access</h3>
+    <p class="sub" style="margin-bottom:12px">Owner-only admin. Enter the passcode set in this page (default below).</p>
+    <label>Passcode<input type="password" id="passInput" placeholder="Enter admin passcode" autocomplete="current-password" /></label>
+    <div class="actions"><button type="button" class="btn primary" id="btnUnlock">Unlock</button></div>
+    <p class="err" id="gateErr"></p>
+    <p class="hint">Default passcode: <code>rkk-admin</code> — change <code>ADMIN_PASS</code> in this file before sharing the URL.</p>
+  </section>
+
+  <div id="app" style="display:none">
+    <h2>Booking Trace</h2>
+    <p class="sub">Search by phone, email, or name. Match <strong>TxnId</strong> against UPI notes like <code>BOOKING-TxnId-Phone-Name</code>.</p>
+
+    <section class="card">
+      <h3>Remote API (optional)</h3>
+      <div class="cfg-row">
+        <label>Apps Script / API base URL
+          <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+        <button type="button" class="btn ghost" id="btnSaveApi">Save</button>
+      </div>
+      <p class="hint">If set, Search and Pending call <code>?action=search</code> / <code>?action=pending</code>. Leave empty to use this browser’s localStorage only.</p>
+    </section>
+
+    <section class="card">
+      <h3>Search transactions</h3>
+      <div class="row cols-3">
+        <label>Phone / Email / Name
+          <input type="text" id="q" placeholder="9876543210 or name or email" />
+        </label>
+        <label>Status filter
+          <select id="statusFilter">
+            <option value="">All</option>
+            <option value="PENDING">PENDING</option>
+            <option value="PAID">PAID</option>
+            <option value="REJECTED">REJECTED</option>
+          </select>
+        </label>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button type="button" class="btn primary" id="btnSearch">Search</button>
+          <button type="button" class="btn ghost" id="btnPending">Pending only</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Results <span id="resultCount" style="color:var(--muted);font-weight:400"></span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>TxnId</th>
+              <th>Client</th>
+              <th>Slot</th>
+              <th>Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6" class="empty">Unlock and search, or load pending.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Manual confirm helper</h3>
+      <p class="hint">After matching UPI, set status to PAID here (local). For the client page to auto-advance, host a file:</p>
+      <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "PAID" }</div>
+      <p class="hint" style="margin-top:8px">as <code>payment_status.json</code> on the booking site (or your Apps Script confirm endpoint).</p>
+    </section>
+  </div>
+</main>
+<script>
+(function(){
+  const ADMIN_PASS = "rkk-admin"; // change this
+  const $ = s => document.querySelector(s);
+  const tbody = $("#tbody");
+  const resultCount = $("#resultCount");
+
+  function loadApiUrl(){ return localStorage.getItem("rkk_admin_api") || ""; }
+  function saveApiUrl(u){ localStorage.setItem("rkk_admin_api", u || ""); }
+
+  function unlock(){
+    const ok = sessionStorage.getItem("rkk_admin_ok") === "1";
+    $("#gate").style.display = ok ? "none" : "block";
+    $("#app").style.display = ok ? "block" : "none";
+    $("#btnLogout").style.display = ok ? "inline-flex" : "none";
+    if(ok){
+      $("#apiUrl").value = loadApiUrl();
+      loadPending();
+    }
+  }
+
+  $("#btnUnlock").addEventListener("click", () => {
+    const v = ($("#passInput").value || "").trim();
+    if(v === ADMIN_PASS){
+      sessionStorage.setItem("rkk_admin_ok","1");
+      $("#gateErr").textContent = "";
+      unlock();
+    } else {
+      $("#gateErr").textContent = "Wrong passcode.";
+    }
+  });
+  $("#passInput").addEventListener("keydown", e => { if(e.key==="Enter") $("#btnUnlock").click(); });
+  $("#btnLogout").addEventListener("click", () => {
+    sessionStorage.removeItem("rkk_admin_ok");
+    unlock();
+  });
+  $("#btnSaveApi").addEventListener("click", () => {
+    saveApiUrl($("#apiUrl").value.trim());
+    alert("API URL saved in this browser.");
+  });
+
+  function localBookings(){
+    try { return JSON.parse(localStorage.getItem("bookings")||"[]"); }
+    catch(_){ return []; }
+  }
+
+  function normalize(b){
+    return {
+      txnId: b.txnId || b.txn_id || "",
+      id: b.id || b.bookingId || b.booking_id || "",
+      bookingId: b.bookingId || b.booking_id || b.id || "",
+      name: b.name || "",
+      email: b.email || "",
+      phone: String(b.phone || ""),
+      duration: b.duration || b.duration_min || "",
+      date: b.date || "",
+      time: b.time || b.time_ist || "",
+      amount: b.amount || b.amount_inr || "",
+      status: String(b.status || b.paymentStatus || "PENDING").toUpperCase(),
+      upiNote: b.upiNote || b.upi_note || "",
+      at: b.at || b.created || ""
+    };
+  }
+
+  async function remote(action, params){
+    const base = loadApiUrl();
+    if(!base) return null;
+    const url = new URL(base);
+    url.searchParams.set("action", action);
+    Object.entries(params||{}).forEach(([k,v]) => { if(v) url.searchParams.set(k, v); });
+    const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
+    if(!res.ok) throw new Error("API "+res.status);
+    const data = await res.json();
+    if(Array.isArray(data)) return data.map(normalize);
+    if(data && Array.isArray(data.rows)) return data.rows.map(normalize);
+    if(data && Array.isArray(data.bookings)) return data.bookings.map(normalize);
+    return [];
+  }
+
+  function filterLocal(q, status){
+    const qq = (q||"").trim().toLowerCase();
+    let list = localBookings().map(normalize);
+    if(status) list = list.filter(b => b.status === status);
+    if(qq){
+      list = list.filter(b =>
+        b.phone.toLowerCase().includes(qq) ||
+        b.email.toLowerCase().includes(qq) ||
+        b.name.toLowerCase().includes(qq) ||
+        String(b.txnId).includes(qq) ||
+        String(b.bookingId).toLowerCase().includes(qq)
+      );
+    }
+    list.sort((a,b) => String(b.at||b.txnId).localeCompare(String(a.at||a.txnId)));
+    return list;
+  }
+
+  function badge(status){
+    const s = (status||"PENDING").toUpperCase();
+    let cls = "pending";
+    if(s==="PAID"||s==="CONFIRMED"||s==="VERIFIED") cls = "paid";
+    if(s==="REJECTED"||s==="CANCELLED") cls = "rejected";
+    return `<span class="badge ${cls}">${s}</span>`;
+  }
+
+  function render(list){
+    resultCount.textContent = list.length ? `(${list.length})` : "";
+    if(!list.length){
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">No bookings found.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map((b,i) => {
+      const slot = [b.date, b.time ? b.time + (String(b.time).includes("IST")?"":" IST") : "", b.duration ? b.duration+" min" : ""].filter(Boolean).join(" · ");
+      const client = `<strong>${escapeHtml(b.name||"—")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span>`;
+      const txn = `<span class="mono">${escapeHtml(b.txnId||"—")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
+      const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "—";
+      const canAct = ["PENDING","UNVERIFIED"].includes(b.status);
+      const actions = canAct
+        ? `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">✓ Confirm</button>
+           <button type="button" class="btn danger" data-act="reject" data-i="${i}">✕ Reject</button>`
+        : `<span style="color:var(--muted);font-size:11px">—</span>`;
+      const trace = b.upiNote ? `<div class="trace" style="margin-top:6px">${escapeHtml(b.upiNote)}</div>` : "";
+      return `<tr data-txn="${escapeHtml(b.txnId)}" data-id="${escapeHtml(b.bookingId)}">
+        <td>${badge(b.status)}</td>
+        <td>${txn}${trace}</td>
+        <td>${client}</td>
+        <td>${escapeHtml(slot||"—")}</td>
+        <td class="mono">${amt}</td>
+        <td><div class="actions">${actions}</div></td>
+      </tr>`;
+    }).join("");
+
+    window.__adminList = list;
+
+    tbody.querySelectorAll("[data-act]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const i = +btn.dataset.i;
+        const act = btn.dataset.act;
+        const row = window.__adminList[i];
+        if(!row) return;
+        if(act === "confirm") setStatus(row, "PAID");
+        if(act === "reject") setStatus(row, "REJECTED");
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+  }
+
+  function setStatus(row, status){
+    try{
+      const list = localBookings();
+      const idx = list.findIndex(b =>
+        (row.txnId && String(b.txnId)===String(row.txnId)) ||
+        (row.bookingId && (String(b.id)===String(row.bookingId)||String(b.bookingId)===String(row.bookingId)))
+      );
+      if(idx>=0){
+        list[idx].status = status;
+        list[idx].paymentStatus = status;
+        localStorage.setItem("bookings", JSON.stringify(list));
+      } else {
+        row.status = status;
+        row.paymentStatus = status;
+        list.push(row);
+        localStorage.setItem("bookings", JSON.stringify(list));
+      }
+    }catch(e){ console.warn(e); }
+
+    $("#statusSnippet").textContent = JSON.stringify({
+      txnId: row.txnId || undefined,
+      id: row.bookingId || row.id || undefined,
+      status: status === "PAID" ? "PAID" : status
+    }, null, 2);
+
+    const base = loadApiUrl();
+    if(base){
+      const url = new URL(base);
+      url.searchParams.set("action", status === "PAID" ? "confirm" : "reject");
+      if(row.txnId) url.searchParams.set("txnId", row.txnId);
+      if(row.bookingId) url.searchParams.set("bookingId", row.bookingId);
+      fetch(url.toString(), { method:"GET", cache:"no-store" }).catch(()=>{});
+    }
+
+    loadPending();
+  }
+
+  async function loadPending(){
+    const q = ($("#q").value||"").trim();
+    const status = $("#statusFilter").value || "PENDING";
+    let list = filterLocal(q, status === "PENDING" ? "PENDING" : status);
+    try{
+      const remoteList = await remote(status === "PENDING" && !q ? "pending" : "search", {
+        phone: q, email: q, name: q, q
+      });
+      if(remoteList){
+        const map = new Map();
+        [...list, ...remoteList].forEach(b => {
+          const key = b.txnId || b.bookingId || (b.phone+b.date+b.time);
+          map.set(key, b);
+        });
+        list = Array.from(map.values());
+        if(status) list = list.filter(b => b.status === status || (status==="PENDING" && b.status==="UNVERIFIED"));
+        if(q){
+          const qq = q.toLowerCase();
+          list = list.filter(b =>
+            b.phone.toLowerCase().includes(qq) ||
+            b.email.toLowerCase().includes(qq) ||
+            b.name.toLowerCase().includes(qq) ||
+            String(b.txnId).includes(qq)
+          );
+        }
+      }
+    }catch(err){
+      console.warn("remote", err);
+    }
+    render(list);
+  }
+
+  async function doSearch(){
+    const q = ($("#q").value||"").trim();
+    const status = $("#statusFilter").value;
+    let list = filterLocal(q, status);
+    try{
+      const remoteList = await remote("search", { phone:q, email:q, name:q, q });
+      if(remoteList){
+        const map = new Map();
+        [...list, ...remoteList].forEach(b => {
+          const key = b.txnId || b.bookingId || (b.phone+b.date+b.time);
+          map.set(key, b);
+        });
+        list = Array.from(map.values());
+        if(status) list = list.filter(b => b.status === status);
+      }
+    }catch(err){ console.warn(err); }
+    render(list);
+  }
+
+  $("#btnSearch").addEventListener("click", doSearch);
+  $("#btnPending").addEventListener("click", () => {
+    $("#statusFilter").value = "PENDING";
+    $("#q").value = "";
+    loadPending();
+  });
+  $("#q").addEventListener("keydown", e => { if(e.key==="Enter") doSearch(); });
+
+  unlock();
+})();
+</script>
+</body>
+</html>
