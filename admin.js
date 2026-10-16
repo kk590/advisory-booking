@@ -4,18 +4,12 @@
   const tbody = $("#tbody");
   const resultCount = $("#resultCount");
 
-  function loadApiUrl(){ return localStorage.getItem("rkk_admin_api") || ""; }
-  function saveApiUrl(u){ localStorage.setItem("rkk_admin_api", u || ""); }
-
   function unlock(){
     const ok = sessionStorage.getItem("rkk_admin_ok") === "1";
     $("#gate").style.display = ok ? "none" : "block";
     $("#app").style.display = ok ? "block" : "none";
     $("#btnLogout").style.display = ok ? "inline-flex" : "none";
-    if(ok){
-      $("#apiUrl").value = loadApiUrl();
-      loadPending();
-    }
+    if(ok) loadPending();
   }
 
   $("#btnUnlock").addEventListener("click", () => {
@@ -32,10 +26,6 @@
   $("#btnLogout").addEventListener("click", () => {
     sessionStorage.removeItem("rkk_admin_ok");
     unlock();
-  });
-  $("#btnSaveApi").addEventListener("click", () => {
-    saveApiUrl($("#apiUrl").value.trim());
-    alert("API URL saved in this browser.");
   });
 
   function localBookings(){
@@ -68,21 +58,6 @@
       upiNote: b.upiNote || b.upi_note || "",
       at: b.at || b.created || ""
     };
-  }
-
-  async function remote(action, params){
-    const base = loadApiUrl();
-    if(!base) return null;
-    const url = new URL(base);
-    url.searchParams.set("action", action);
-    Object.entries(params||{}).forEach(([k,v]) => { if(v) url.searchParams.set(k, v); });
-    const res = await fetch(url.toString(), { method:"GET", cache:"no-store" });
-    if(!res.ok) throw new Error("API "+res.status);
-    const data = await res.json();
-    if(Array.isArray(data)) return data.map(normalize);
-    if(data && Array.isArray(data.rows)) return data.rows.map(normalize);
-    if(data && Array.isArray(data.bookings)) return data.bookings.map(normalize);
-    return [];
   }
 
   function filterLocal(q, status){
@@ -189,67 +164,19 @@
       status: status === "PAID" ? "PAID" : status
     }, null, 2);
 
-    const base = loadApiUrl();
-    if(base){
-      const url = new URL(base);
-      url.searchParams.set("action", status === "PAID" ? "confirm" : "reject");
-      if(row.txnId) url.searchParams.set("txnId", row.txnId);
-      if(row.bookingId) url.searchParams.set("bookingId", row.bookingId);
-      fetch(url.toString(), { method:"GET", cache:"no-store" }).catch(()=>{});
-    }
-
     loadPending();
   }
 
-  async function loadPending(){
+  function loadPending(){
     const q = ($("#q").value||"").trim();
     const status = $("#statusFilter").value || "PENDING";
-    let list = filterLocal(q, status === "PENDING" ? "PENDING" : status);
-    try{
-      const remoteList = await remote(status === "PENDING" && !q ? "pending" : "search", {
-        phone: q, email: q, name: q, q
-      });
-      if(remoteList){
-        const map = new Map();
-        [...list, ...remoteList].forEach(b => {
-          const key = b.txnId || b.bookingId || (b.phone+b.date+b.time);
-          map.set(key, b);
-        });
-        list = Array.from(map.values());
-        if(status) list = list.filter(b => b.status === status || (status==="PENDING" && b.status==="UNVERIFIED"));
-        if(q){
-          const qq = q.toLowerCase();
-          list = list.filter(b =>
-            b.phone.toLowerCase().includes(qq) ||
-            b.email.toLowerCase().includes(qq) ||
-            b.name.toLowerCase().includes(qq) ||
-            String(b.txnId).includes(qq)
-          );
-        }
-      }
-    }catch(err){
-      console.warn("remote", err);
-    }
-    render(list);
+    render(filterLocal(q, status === "PENDING" ? "PENDING" : status));
   }
 
-  async function doSearch(){
+  function doSearch(){
     const q = ($("#q").value||"").trim();
     const status = $("#statusFilter").value;
-    let list = filterLocal(q, status);
-    try{
-      const remoteList = await remote("search", { phone:q, email:q, name:q, q });
-      if(remoteList){
-        const map = new Map();
-        [...list, ...remoteList].forEach(b => {
-          const key = b.txnId || b.bookingId || (b.phone+b.date+b.time);
-          map.set(key, b);
-        });
-        list = Array.from(map.values());
-        if(status) list = list.filter(b => b.status === status);
-      }
-    }catch(err){ console.warn(err); }
-    render(list);
+    render(filterLocal(q, status));
   }
 
   $("#btnSearch").addEventListener("click", doSearch);
@@ -260,7 +187,6 @@
   });
   $("#q").addEventListener("keydown", e => { if(e.key==="Enter") doSearch(); });
 
-  /* Live updates from booking page (same origin) — replaces email for admin */
   window.addEventListener("storage", (ev) => {
     if (ev.key === "bookings" || ev.key === "rkk_admin_inbox" || ev.key === "rkk_admin_inbox_ts") {
       if (sessionStorage.getItem("rkk_admin_ok") === "1") loadPending();

@@ -74,19 +74,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
   <div id="app" style="display:none">
     <h2>Booking Trace</h2>
     <p class="sub">New bookings from the booking page appear <strong>here automatically</strong> (same browser / site) — no email needed.
-      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>.
-      Optional remote API is only for other devices.</p>
-
-    <section class="card">
-      <h3>Remote API (optional)</h3>
-      <div class="cfg-row">
-        <label>Apps Script / API base URL
-          <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec" />
-        </label>
-        <button type="button" class="btn ghost" id="btnSaveApi">Save</button>
-      </div>
-      <p class="hint">Leave empty to use bookings from this site (automatic). Set Apps Script URL only if you need the same list on phone + laptop.</p>
-    </section>
+      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>.</p>
 
     <section class="card">
       <h3>Search transactions</h3>
@@ -134,7 +122,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
       <h3>Manual confirm helper</h3>
       <p class="hint">After matching UPI, set status to PAID here (local). For the client page to auto-advance, host a file:</p>
       <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "PAID" }</div>
-      <p class="hint" style="margin-top:8px">as <code>payment_status.json</code> on the booking site (or your Apps Script confirm endpoint).</p>
+      <p class="hint" style="margin-top:8px">as <code>payment_status.json</code> on the booking site.</p>
     </section>
   </div>
 </main>
