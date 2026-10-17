@@ -56,6 +56,7 @@
       amount: b.amount || b.amount_inr || "",
       status: String(b.status || b.paymentStatus || "PENDING").toUpperCase(),
       upiNote: b.upiNote || b.upi_note || "",
+      meetLink: b.meetLink || b.meet_link || b.meet || "",
       at: b.at || b.created || ""
     };
   }
@@ -97,6 +98,7 @@
     }
     tbody.innerHTML = list.map((b,i) => {
       const slot = [b.date, b.time ? b.time + (String(b.time).includes("IST")?"":" IST") : "", b.duration ? b.duration+" min" : ""].filter(Boolean).join(" · ");
+      const meet = b.meetLink ? `<div style="margin-top:6px"><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);word-break:break-all">${escapeHtml(b.meetLink)}</a></div>` : "";
       const client = `<strong>${escapeHtml(b.name||"—")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span>`;
       const txn = `<span class="mono">${escapeHtml(b.txnId||"—")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
       const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "—";
@@ -110,7 +112,7 @@
         <td>${badge(b.status)}</td>
         <td>${txn}${trace}</td>
         <td>${client}</td>
-        <td>${escapeHtml(slot||"—")}</td>
+        <td>${escapeHtml(slot||"—")}${meet}</td>
         <td class="mono">${amt}</td>
         <td><div class="actions">${actions}</div></td>
       </tr>`;
@@ -140,11 +142,13 @@
       if(idx>=0){
         list[idx].status = status;
         list[idx].paymentStatus = status;
+        if (row.meetLink) list[idx].meetLink = row.meetLink;
         localStorage.setItem("bookings", JSON.stringify(list));
         try {
           const inbox = JSON.parse(localStorage.getItem("rkk_admin_inbox")||"[]").map(x => {
             if ((row.txnId && String(x.txnId)===String(row.txnId)) || (row.bookingId && String(x.bookingId||x.id)===String(row.bookingId))) {
               x.status = status; x.paymentStatus = status;
+              if (row.meetLink) x.meetLink = row.meetLink;
             }
             return x;
           });
@@ -161,7 +165,8 @@
     $("#statusSnippet").textContent = JSON.stringify({
       txnId: row.txnId || undefined,
       id: row.bookingId || row.id || undefined,
-      status: status === "CONFIRMED" ? "CONFIRMED" : status
+      status: status === "CONFIRMED" ? "CONFIRMED" : status,
+      meetLink: row.meetLink || undefined
     }, null, 2);
 
     loadPending();
