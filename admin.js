@@ -99,7 +99,8 @@
     tbody.innerHTML = list.map((b,i) => {
       const slot = [b.date, b.time ? b.time + (String(b.time).includes("IST")?"":" IST") : "", b.duration ? b.duration+" min" : ""].filter(Boolean).join(" · ");
       const meet = b.meetLink ? `<div style="margin-top:6px"><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);word-break:break-all">${escapeHtml(b.meetLink)}</a></div>` : "";
-      const client = `<strong>${escapeHtml(b.name||"—")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span>`;
+      const timeLabel = b.time ? (String(b.time).includes("IST") ? b.time : b.time + " IST") : "—";
+      const client = `<strong>${escapeHtml(b.name||"—")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span><br/><span style="color:var(--gold);font-size:11px;margin-top:4px;display:inline-block">Date: ${escapeHtml(b.date||"—")}</span><br/><span style="color:var(--gold);font-size:11px">Time: ${escapeHtml(timeLabel)}</span>${b.meetLink ? `<br/><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:11px;word-break:break-all">Meet: ${escapeHtml(b.meetLink)}</a>` : `<br/><span style="color:var(--muted);font-size:11px">Meet: —</span>`}`;
       const txn = `<span class="mono">${escapeHtml(b.txnId||"—")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
       const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "—";
       const canAct = ["PENDING","UNVERIFIED"].includes(b.status);
