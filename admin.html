@@ -50,14 +50,12 @@ tr:hover td{background:rgba(212,175,55,.04)}
 .err{color:var(--error);font-size:12px;min-height:16px;margin-top:8px}
 .hint{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
 .trace{background:var(--canvas);border:1px solid var(--border);padding:10px 12px;font-size:11px;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--gold)}
-.cfg-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
-.cfg-row label{flex:1;min-width:160px}
 </style>
 </head>
 <body>
 <header>
   <div class="header-inner">
-    <div class="brand">RKK Admin<span>BOOKING TRACE // OWNER ONLY</span></div>
+    <div class="brand">RKK Admin<span>BOOKING TRACE // SLM CONSULTANCY</span></div>
     <button type="button" class="btn ghost" id="btnLogout" style="display:none">Lock</button>
   </div>
 </header>
@@ -73,8 +71,8 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
   <div id="app" style="display:none">
     <h2>Booking Trace</h2>
-    <p class="sub">New bookings from the booking page appear <strong>here automatically</strong> (same browser / site) — no email needed.
-      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>. Google Meet link appears after booking (and on confirm).</p>
+    <p class="sub">Bookings sync from the booking page (localStorage + <strong>Supabase</strong> when configured).
+      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>. Client column shows date, time, and Meet link.</p>
 
     <section class="card">
       <h3>Search transactions</h3>
@@ -121,12 +119,13 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
     <section class="card">
       <h3>Manual confirm helper</h3>
-      <p class="hint">After matching UPI, set status to CONFIRMED here. For the client page to auto-advance, host a file:</p>
+      <p class="hint">After matching UPI, set status to CONFIRMED here.</p>
       <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "CONFIRMED" }</div>
-      <p class="hint" style="margin-top:8px">as <code>payment_status.json</code> on the booking site.</p>
     </section>
   </div>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>
