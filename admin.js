@@ -28,6 +28,21 @@
     unlock();
   });
 
+  async function loadFromSupabase(){
+    try{
+      if(!window.supabase || !(window.SUPABASE_URL||"").trim() || !(window.SUPABASE_ANON_KEY||"").trim()) return null;
+      const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      const { data, error } = await sb.from("bookings").select("*").order("created_at",{ascending:false}).limit(200);
+      if(error){ console.warn(error); return null; }
+      return (data||[]).map(r => ({
+        txnId: r.txn_id, id: r.booking_id, bookingId: r.booking_id,
+        name: r.name, email: r.email, phone: r.phone, duration: r.duration,
+        date: r.date, time: r.time, amount: r.amount, status: r.status,
+        upiNote: r.upi_note, meetLink: r.meet_link, at: r.created_at
+      }));
+    }catch(e){ console.warn(e); return null; }
+  }
+
   function localBookings(){
     try {
       const a = JSON.parse(localStorage.getItem("bookings")||"[]");
@@ -87,7 +102,7 @@
   }
 
   function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
   }
 
   function render(list){
@@ -99,21 +114,21 @@
     tbody.innerHTML = list.map((b,i) => {
       const slot = [b.date, b.time ? b.time + (String(b.time).includes("IST")?"":" IST") : "", b.duration ? b.duration+" min" : ""].filter(Boolean).join(" · ");
       const meet = b.meetLink ? `<div style="margin-top:6px"><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);word-break:break-all">${escapeHtml(b.meetLink)}</a></div>` : "";
-      const timeLabel = b.time ? (String(b.time).includes("IST") ? b.time : b.time + " IST") : "—";
-      const client = `<strong>${escapeHtml(b.name||"—")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span><br/><span style="color:var(--gold);font-size:11px;margin-top:4px;display:inline-block">Date: ${escapeHtml(b.date||"—")}</span><br/><span style="color:var(--gold);font-size:11px">Time: ${escapeHtml(timeLabel)}</span>${b.meetLink ? `<br/><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:11px;word-break:break-all">Meet: ${escapeHtml(b.meetLink)}</a>` : `<br/><span style="color:var(--muted);font-size:11px">Meet: —</span>`}`;
-      const txn = `<span class="mono">${escapeHtml(b.txnId||"—")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
-      const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "—";
+      const timeLabel = b.time ? (String(b.time).includes("IST") ? b.time : b.time + " IST") : "-";
+      const client = `<strong>${escapeHtml(b.name||"-")}</strong><br/><span style="color:var(--muted)">${escapeHtml(b.phone)}</span><br/><span style="color:var(--muted)">${escapeHtml(b.email)}</span><br/><span style="color:var(--gold);font-size:11px;margin-top:4px;display:inline-block">Date: ${escapeHtml(b.date||"-")}</span><br/><span style="color:var(--gold);font-size:11px">Time: ${escapeHtml(timeLabel)}</span>${b.meetLink ? `<br/><a href="${escapeHtml(b.meetLink)}" target="_blank" rel="noopener" style="color:var(--primary);font-size:11px;word-break:break-all">Meet: ${escapeHtml(b.meetLink)}</a>` : `<br/><span style="color:var(--muted);font-size:11px">Meet: -</span>`}`;
+      const txn = `<span class="mono">${escapeHtml(b.txnId||"-")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
+      const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "-";
       const canAct = ["PENDING","UNVERIFIED"].includes(b.status);
       const actions = canAct
-        ? `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">✓ Confirm</button>
-           <button type="button" class="btn danger" data-act="reject" data-i="${i}">✕ Reject</button>`
-        : `<span style="color:var(--muted);font-size:11px">—</span>`;
+        ? `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">Confirm</button>
+           <button type="button" class="btn danger" data-act="reject" data-i="${i}">Reject</button>`
+        : `<span style="color:var(--muted);font-size:11px">-</span>`;
       const trace = b.upiNote ? `<div class="trace" style="margin-top:6px">${escapeHtml(b.upiNote)}</div>` : "";
       return `<tr data-txn="${escapeHtml(b.txnId)}" data-id="${escapeHtml(b.bookingId)}">
         <td>${badge(b.status)}</td>
         <td>${txn}${trace}</td>
         <td>${client}</td>
-        <td>${escapeHtml(slot||"—")}${meet}</td>
+        <td>${escapeHtml(slot||"-")}${meet}</td>
         <td class="mono">${amt}</td>
         <td><div class="actions">${actions}</div></td>
       </tr>`;
@@ -170,6 +185,13 @@
       meetLink: row.meetLink || undefined
     }, null, 2);
 
+    try{
+      if(window.supabase && (window.SUPABASE_URL||"").trim() && (window.SUPABASE_ANON_KEY||"").trim() && row.txnId){
+        const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+        sb.from("bookings").update({ status: status, meet_link: row.meetLink || null }).eq("txn_id", String(row.txnId)).then(()=>{});
+      }
+    }catch(_){}
+
     loadPending();
   }
 
@@ -177,6 +199,19 @@
     const q = ($("#q").value||"").trim();
     const status = $("#statusFilter").value || "PENDING";
     render(filterLocal(q, status === "PENDING" ? "PENDING" : status));
+    loadFromSupabase().then(remote => {
+      if(!remote || !remote.length) return;
+      try{
+        const local = JSON.parse(localStorage.getItem("bookings")||"[]");
+        const map = new Map();
+        [...local, ...remote].forEach(r => {
+          const k = r.txnId || r.bookingId;
+          if(k) map.set(String(k), r);
+        });
+        localStorage.setItem("bookings", JSON.stringify(Array.from(map.values())));
+      }catch(_){}
+      render(filterLocal(q, status === "PENDING" ? "PENDING" : status));
+    });
   }
 
   function doSearch(){
