@@ -13,10 +13,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--canvas);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased}
 header{border-bottom:1px solid var(--border);background:rgba(5,5,5,.92);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
-.header-inner{max-width:960px;margin:0 auto;padding:0 1.25rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.header-inner{max-width:1100px;margin:0 auto;padding:0 1.25rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .brand{font-family:'Syne',sans-serif;font-weight:700;font-size:15px}
 .brand span{color:var(--primary);font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-top:2px;font-family:'JetBrains Mono',monospace;font-weight:500}
-main{max-width:960px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+main{max-width:1100px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
 h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px}
 .sub{color:var(--muted);font-size:12px;margin-bottom:1.25rem}
 .card{background:var(--charcoal);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.25rem}
@@ -34,7 +34,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
 .btn.ok{background:rgba(110,231,183,.15);color:var(--ok);border:1px solid rgba(110,231,183,.35)}
 .btn.danger{background:rgba(255,180,171,.1);color:var(--error);border:1px solid rgba(255,180,171,.3)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .badge{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--border)}
 .badge.pending{color:var(--warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
 .badge.paid,.badge.confirmed{color:var(--ok);border-color:rgba(110,231,183,.4);background:rgba(110,231,183,.08)}
@@ -42,7 +42,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:8px 6px;border-bottom:1px solid var(--border)}
-td{padding:10px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+td{padding:12px 6px;border-bottom:1px solid var(--border);vertical-align:top}
 tr:hover td{background:rgba(212,175,55,.04)}
 .mono{font-variant-numeric:tabular-nums}
 .empty{color:var(--muted);padding:1.5rem 0;text-align:center;font-size:12px}
@@ -55,7 +55,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
 <body>
 <header>
   <div class="header-inner">
-    <div class="brand">RKK Admin<span>BOOKING TRACE // SLM CONSULTANCY</span></div>
+    <div class="brand">RKK Admin<span>BOOKING TRACE // MAS AUTOMATION</span></div>
     <button type="button" class="btn ghost" id="btnLogout" style="display:none">Lock</button>
   </div>
 </header>
@@ -71,27 +71,28 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
   <div id="app" style="display:none">
     <h2>Booking Trace</h2>
-    <p class="sub">Bookings sync from the booking page (localStorage + <strong>Supabase</strong> when configured).
-      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>. Client column shows date, time, and Meet link.</p>
+    <p class="sub">All client details stay listed here (from <strong>Supabase</strong> when configured). Search filters the list; it does not clear data.
+      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>. Each row shows name, phone, email, date, time, duration, and Meet link.</p>
 
     <section class="card">
-      <h3>Search transactions</h3>
+      <h3>Search / filter</h3>
       <div class="row cols-3">
         <label>Phone / Email / Name
           <input type="text" id="q" placeholder="9876543210 or name or email" />
         </label>
         <label>Status filter
           <select id="statusFilter">
-            <option value="">All</option>
+            <option value="" selected>All</option>
             <option value="PENDING">PENDING</option>
             <option value="CONFIRMED">CONFIRMED</option>
             <option value="PAID">PAID</option>
             <option value="REJECTED">REJECTED</option>
           </select>
         </label>
-        <div style="display:flex;align-items:flex-end;gap:8px">
+        <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn primary" id="btnSearch">Search</button>
           <button type="button" class="btn ghost" id="btnPending">Pending only</button>
+          <button type="button" class="btn ghost" id="btnAll">Show all</button>
         </div>
       </div>
     </section>
@@ -104,14 +105,14 @@ tr:hover td{background:rgba(212,175,55,.04)}
             <tr>
               <th>Status</th>
               <th>TxnId</th>
-              <th>Client</th>
-              <th>Slot / Meet</th>
+              <th>Client details</th>
+              <th>Slot</th>
               <th>Amount</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="6" class="empty">Unlock and search, or load pending.</td></tr>
+            <tr><td colspan="6" class="empty">Unlock to load all bookings from Supabase / this browser.</td></tr>
           </tbody>
         </table>
       </div>
@@ -119,7 +120,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
     <section class="card">
       <h3>Manual confirm helper</h3>
-      <p class="hint">After matching UPI, set status to CONFIRMED here.</p>
+      <p class="hint">After matching UPI, set status to CONFIRMED here. Status is saved to Supabase when configured.</p>
       <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "CONFIRMED" }</div>
     </section>
   </div>
