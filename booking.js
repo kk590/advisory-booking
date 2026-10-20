@@ -6,7 +6,7 @@ function getSupabase(){if(_sb)return _sb;if(!SUPABASE_URL||!SUPABASE_ANON_KEY||!
 async function supabaseUpsertBooking(booking){const sb=getSupabase();if(!sb)return false;try{const row={txn_id:booking.txnId,booking_id:booking.bookingId||booking.id,name:booking.name,email:booking.email,phone:booking.phone,duration:booking.duration,date:booking.date,time:booking.time,amount:booking.amount,status:booking.status||"PENDING",upi_note:booking.upiNote||"",meet_link:booking.meetLink||"",created_at:booking.at||new Date().toISOString()};const{error}=await sb.from("bookings").upsert(row,{onConflict:"txn_id"});if(error){console.warn("supabase upsert",error);return false}return true}catch(e){console.warn(e);return false}}
 async function supabaseUpdateStatus(txnId,status,meetLink){const sb=getSupabase();if(!sb||!txnId)return false;try{const patch={status};if(meetLink)patch.meet_link=meetLink;const{error}=await sb.from("bookings").update(patch).eq("txn_id",String(txnId));if(error){console.warn("supabase update",error);return false}return true}catch(e){console.warn(e);return false}}
 function resolveMeetLink(time,duration){return (CONFIG.meetLinks&&CONFIG.meetLinks[time])||(CONFIG.meetLinks&&CONFIG.meetLinks[String(duration)])||CONFIG.defaultMeetLink||""}
-const CONFIG={vpa:"kkrakshan2006@okaxis",payeeName:"Rakshan Kamalakannan",currency:"INR",prices:{15:500,30:1000},notifyEmail:"",webhookUrl:"",defaultMeetLink:"https://meet.google.com/hug-wbju-eag",meetLinks:{"15:00":"https://meet.google.com/hzt-pxbw-mxb","16:00":"https://meet.google.com/xij-ximc-hxx"},titles:{15:"Quick Systems Gut-Check (15 min)",30:"Production Systems Deep-Dive (30 min)"},
+const CONFIG={vpa:"kkrakshan2006@okaxis",payeeName:"Rakshan Kamalakannan",currency:"INR",prices:{15:500,30:1000},notifyEmail:"",webhookUrl:"",defaultMeetLink:"https://meet.google.com/xvu-hssb-nem",meetLinks:{"15:00":"https://meet.google.com/xvu-hssb-nem","16:00":"https://meet.google.com/xvu-hssb-nem"},titles:{15:"Quick Chat (15 min)",30:"Guided Session (30 min)"},
 schedule:{0:[[15*60,17*60]],1:[[15*60,17*60]],2:[[15*60,17*60]],3:[[15*60,17*60]],4:[[15*60,17*60]],5:[[15*60,17*60]],6:[[15*60,17*60]]}};
 const state={duration:null,date:null,time:null,details:null,bookingId:null,txnId:null};
 const $=s=>document.querySelector(s);
@@ -37,7 +37,7 @@ const waitBox=$("#waitingBox");waitBox.style.display="block";$("#waitMeta").text
 async function pollRemoteStatus(){if(!state.bookingId&&!state.txnId)return;try{const list=JSON.parse(localStorage.getItem("bookings")||"[]");const local=list.find(b=>(state.txnId&&String(b.txnId)===String(state.txnId))||(state.bookingId&&(String(b.id)===String(state.bookingId)||String(b.bookingId)===String(state.bookingId))));if(local&&["CONFIRMED","confirmed","PAID","paid","verified","VERIFIED"].includes(String(local.status||local.paymentStatus||""))){markConfirmed();return}}catch(_){}try{const res=await fetch("payment_status.json?t="+Date.now(),{cache:"no-store"});if(!res.ok)return;const data=await res.json();const matchId=data&&(String(data.id)===String(state.bookingId)||String(data.txnId)===String(state.txnId)||String(data.bookingId)===String(state.bookingId));const ok=data&&matchId&&["verified","paid","PAID","VERIFIED","CONFIRMED","confirmed"].includes(String(data.status));if(ok)markConfirmed()}catch(_){}}
 function markConfirmed(){if(window.__payCheckInterval){clearInterval(window.__payCheckInterval);window.__payCheckInterval=null}const amount=getCurrentAmount();const meetLink=resolveMeetLink(state.time,state.duration);try{const list=JSON.parse(localStorage.getItem("bookings")||"[]");const idx=list.findIndex(b=>b.id===state.bookingId||b.txnId===state.txnId);if(idx>=0){list[idx].status="CONFIRMED";list[idx].paymentStatus="CONFIRMED";list[idx].meetLink=meetLink;localStorage.setItem("bookings",JSON.stringify(list));try{const inbox=JSON.parse(localStorage.getItem("rkk_admin_inbox")||"[]").map(x=>{if(String(x.txnId)===String(state.txnId)||String(x.id)===String(state.bookingId)||String(x.bookingId)===String(state.bookingId)){x.status="CONFIRMED";x.paymentStatus="CONFIRMED";x.meetLink=meetLink}return x});localStorage.setItem("rkk_admin_inbox",JSON.stringify(inbox))}catch(_){}}}catch(_){}try{supabaseUpdateStatus(state.txnId,"CONFIRMED",meetLink)}catch(_){}
 $("#confirmMsg").textContent="Payment verified. Your session is confirmed for "+state.date+" at "+state.time+" IST.";$("#finalSummary").textContent=CONFIG.titles[state.duration]+" · "+state.date+" at "+state.time+" · "+fmtINR(amount)+" · CONFIRMED · TxnId "+(state.txnId||"")+" · "+(state.bookingId||"");$("#finalMeetLink").href=meetLink;goTo(5)}
-function downloadReceiptPdf(ev){if(ev){ev.preventDefault();ev.stopPropagation()}try{var a=document.createElement("a");a.href="receipt-template.pdf";a.download="RKK-Payment-Receipt-"+(state.txnId||Date.now())+".pdf";a.rel="noopener";fetch("receipt-template.pdf",{method:"HEAD"}).then(function(res){if(res.ok){/* blank template only — always fill */generateFilledReceiptPdf()}else generateFilledReceiptPdf()}).catch(function(){generateFilledReceiptPdf()})}catch(_){generateFilledReceiptPdf()}}
+function downloadReceiptPdf(ev){if(ev){ev.preventDefault();ev.stopPropagation()}try{generateFilledReceiptPdf()}catch(_){generateFilledReceiptPdf()}}
 function generateFilledReceiptPdf(){
 try{
   var JsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF||(window.jspdf&&window.jspdf.default);
@@ -48,7 +48,7 @@ try{
   var companyUrl="https://landing-page-three-ochre-80.vercel.app/";
   var currency="INR ";
   var serviceTitle=(CONFIG.titles&&CONFIG.titles[state.duration])||"Consultation Session";
-  var serviceDesc=state.duration===15?"Diagnostic session: multi-agent AI, SaaS, or performance triage.":"Deep-dive: multi-agent architecture, SaaS reliability, performance, or production AI tooling.";
+  var serviceDesc=state.duration===15?"Quick chat: multi-agent AI, SaaS, or simple AI tools.":"Guided session: multi-agent AI, SaaS, performance, or beginner-friendly AI tools.";
   var scheduled=(state.date||"-")+" "+(state.time||"-")+" IST";
   var created=new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})+" IST";
   var bookingId=state.bookingId||"-";
@@ -58,15 +58,12 @@ try{
   var clientPhone=(state.details&&state.details.phone)||"-";
   var dur=state.duration?state.duration+" mins":"-";
   var status="CONFIRMED";
-
   var doc=new JsPDFCtor({unit:"pt",format:"a4"});
   var W=doc.internal.pageSize.getWidth();
   var H=doc.internal.pageSize.getHeight();
   var left=40, right=W-40, y=40;
-
   doc.setFillColor(5,5,5);
   doc.rect(0,0,W,H,"F");
-
   doc.setTextColor(212,175,55);
   doc.setFont("helvetica","bold");
   doc.setFontSize(18);
@@ -78,7 +75,6 @@ try{
   doc.setFontSize(8);
   doc.setTextColor(161,161,170);
   doc.text(companyUrl, left+32, y+12);
-
   doc.setFont("helvetica","bold");
   doc.setFontSize(14);
   doc.setTextColor(244,244,245);
@@ -88,8 +84,7 @@ try{
   doc.roundedRect(right-110, y+10, 110, 18, 3, 3, "FD");
   doc.setTextColor(110,231,183);
   doc.setFontSize(9);
-  doc.text("\u2713  "+status, right-55, y+22, {align:"center"});
-
+  doc.text("OK  "+status, right-55, y+22, {align:"center"});
   y=80;
   var cardW=(right-left-12)/2;
   var cardH=95;
@@ -97,30 +92,21 @@ try{
   doc.setDrawColor(51,51,54);
   doc.roundedRect(left, y, cardW, cardH, 4, 4, "FD");
   doc.roundedRect(left+cardW+12, y, cardW, cardH, 4, 4, "FD");
-
   doc.setFont("helvetica","bold");
   doc.setFontSize(9);
   doc.setTextColor(212,175,55);
   doc.text("BOOKING DETAILS", left+12, y+18);
   doc.text("CLIENT INFORMATION", left+cardW+24, y+18);
-
   doc.setFont("helvetica","normal");
   doc.setFontSize(9);
-  function kv(x, yy, k, v){
-    doc.setTextColor(161,161,170);
-    doc.text(k, x, yy);
-    doc.setTextColor(244,244,245);
-    doc.text(String(v), x+78, yy);
-  }
+  function kv(x, yy, k, v){doc.setTextColor(161,161,170);doc.text(k, x, yy);doc.setTextColor(244,244,245);doc.text(String(v), x+78, yy);}
   kv(left+12, y+36, "Booking ID:", bookingId);
   kv(left+12, y+50, "Created Date:", created);
   kv(left+12, y+64, "Txn ID:", txnId);
   kv(left+12, y+78, "Test Mode:", "No");
-
   kv(left+cardW+24, y+36, "Name:", clientName);
   kv(left+cardW+24, y+50, "Email:", clientEmail);
   kv(left+cardW+24, y+64, "Phone:", clientPhone);
-
   y += cardH + 16;
   doc.setFillColor(26,26,28);
   doc.rect(left, y, right-left, 22, "F");
@@ -131,7 +117,6 @@ try{
   doc.text("Scheduled Date & Time", left+200, y+14);
   doc.text("Duration", left+360, y+14);
   doc.text("Amount", left+430, y+14);
-
   y += 22;
   doc.setFillColor(17,17,19);
   doc.rect(left, y, right-left, 40, "F");
@@ -151,7 +136,6 @@ try{
   doc.setTextColor(212,175,55);
   doc.setFont("helvetica","bold");
   doc.text(currency+Number(amount||0).toLocaleString("en-IN"), left+430, y+20);
-
   y += 56;
   doc.setDrawColor(212,175,55);
   doc.setLineWidth(1);
@@ -169,7 +153,6 @@ try{
   doc.setFontSize(16);
   doc.setTextColor(212,175,55);
   doc.text(currency+Number(amount||0).toLocaleString("en-IN"), right-12, y+30, {align:"right"});
-
   y += 64;
   doc.setFillColor(17,17,19);
   doc.setDrawColor(51,51,54);
@@ -187,18 +170,13 @@ try{
   doc.setTextColor(212,175,55);
   doc.setFontSize(9);
   doc.text("Google Meet: "+(meetLink||"-"), left+12, y+34+nlines.length*11+8);
-
   doc.setFont("helvetica","normal");
   doc.setFontSize(8);
   doc.setTextColor(100,100,100);
   doc.text(companyName+"  ·  Payment Receipt", left, H-28);
   doc.text("Page 1 of 1", right, H-28, {align:"right"});
-
   doc.save("RKK-Payment-Receipt-"+(txnId!=="-"?txnId:Date.now())+".pdf");
-}catch(err){
-  console.error(err);
-  alert("Could not generate PDF: "+(err&&err.message?err.message:"error"));
-}
+}catch(err){console.error(err);alert("Could not generate PDF: "+(err&&err.message?err.message:"error"));}
 }
 window.__payCheckInterval=setInterval(pollRemoteStatus,4000);
 document.addEventListener("click",function(e){var t=e.target;if(!t)return;if(t.id==="downloadReceipt"||(t.closest&&t.closest("#downloadReceipt"))){downloadReceiptPdf(e);}});
