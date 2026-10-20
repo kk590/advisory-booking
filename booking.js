@@ -6,7 +6,7 @@ function getSupabase(){if(_sb)return _sb;if(!SUPABASE_URL||!SUPABASE_ANON_KEY||!
 async function supabaseUpsertBooking(booking){const sb=getSupabase();if(!sb)return false;try{const row={txn_id:booking.txnId,booking_id:booking.bookingId||booking.id,name:booking.name,email:booking.email,phone:booking.phone,duration:booking.duration,date:booking.date,time:booking.time,amount:booking.amount,status:booking.status||"PENDING",upi_note:booking.upiNote||"",meet_link:booking.meetLink||"",created_at:booking.at||new Date().toISOString()};const{error}=await sb.from("bookings").upsert(row,{onConflict:"txn_id"});if(error){console.warn("supabase upsert",error);return false}return true}catch(e){console.warn(e);return false}}
 async function supabaseUpdateStatus(txnId,status,meetLink){const sb=getSupabase();if(!sb||!txnId)return false;try{const patch={status};if(meetLink)patch.meet_link=meetLink;const{error}=await sb.from("bookings").update(patch).eq("txn_id",String(txnId));if(error){console.warn("supabase update",error);return false}return true}catch(e){console.warn(e);return false}}
 function resolveMeetLink(time,duration){return (CONFIG.meetLinks&&CONFIG.meetLinks[time])||(CONFIG.meetLinks&&CONFIG.meetLinks[String(duration)])||CONFIG.defaultMeetLink||""}
-const CONFIG={vpa:"kkrakshan2006@okaxis",payeeName:"Rakshan Kamalakannan",currency:"INR",prices:{15:500,30:1000},notifyEmail:"",webhookUrl:"",defaultMeetLink:"https://meet.google.com/xvu-hssb-nem",meetLinks:{"15:00":"https://meet.google.com/xvu-hssb-nem","16:00":"https://meet.google.com/xvu-hssb-nem"},titles:{15:"Quick Chat (15 min)",30:"Guided Session (30 min)"},
+const CONFIG={vpa:"kkrakshan2006@okaxis",payeeName:"Rakshan Kamalakannan",currency:"INR",prices:{15:500,30:1000},notifyEmail:"",webhookUrl:"",defaultMeetLink:"https://meet.google.com/xvu-hssb-nem",meetLinks:{"15:00":"https://meet.google.com/xvu-hssb-nem","16:00":"https://meet.google.com/xvu-hssb-nem"},titles:{15:"Technical Review (15 min)",30:"Full Audit Session (30 min)"},
 schedule:{0:[[15*60,17*60]],1:[[15*60,17*60]],2:[[15*60,17*60]],3:[[15*60,17*60]],4:[[15*60,17*60]],5:[[15*60,17*60]],6:[[15*60,17*60]]}};
 const state={duration:null,date:null,time:null,details:null,bookingId:null,txnId:null};
 const $=s=>document.querySelector(s);
@@ -48,7 +48,7 @@ try{
   var companyUrl="https://landing-page-three-ochre-80.vercel.app/";
   var currency="INR ";
   var serviceTitle=(CONFIG.titles&&CONFIG.titles[state.duration])||"Consultation Session";
-  var serviceDesc=state.duration===15?"Quick chat: multi-agent AI, SaaS, or simple AI tools.":"Guided session: multi-agent AI, SaaS, performance, or beginner-friendly AI tools.";
+  var serviceDesc=state.duration===15?"Technical review: bottleneck review, SSL audit overview, next steps.":"Full solution audit report and SSL audit report with prioritised fixes.";
   var scheduled=(state.date||"-")+" "+(state.time||"-")+" IST";
   var created=new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})+" IST";
   var bookingId=state.bookingId||"-";
