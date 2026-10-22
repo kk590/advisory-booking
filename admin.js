@@ -234,14 +234,34 @@
     render(filterList(q, status));
   }
 
+  function setCloudStatus(msg, ok){
+    let el = document.getElementById("cloudStatus");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "cloudStatus";
+      el.style.cssText = "font-size:11px;padding:8px 12px;margin:8px 0;border:1px solid #333;color:#a1a1aa";
+      const app = document.getElementById("app");
+      if(app) app.insertBefore(el, app.firstChild);
+    }
+    el.textContent = msg;
+    el.style.borderColor = ok ? "#6ee7b7" : "#D4AF37";
+    el.style.color = ok ? "#6ee7b7" : "#F7E7CE";
+  }
   async function loadAll(forceRemote){
     applyFilters();
     if(loadingRemote) return;
     loadingRemote = true;
     try{
+      const hasKeys = !!(window.SUPABASE_URL||"").trim() && !!(window.SUPABASE_ANON_KEY||"").trim();
+      if(!hasKeys){
+        setCloudStatus("Cloud sync OFF — mobile bookings will not appear here. Put SUPABASE_URL and SUPABASE_ANON_KEY in supabase-config.js, then redeploy.", false);
+      }
       const remote = await loadFromSupabase();
-      if(remote && remote.length){
+      if(remote === null){
+        if(hasKeys) setCloudStatus("Cloud sync error — check Supabase URL, anon key, and RLS policies.", false);
+      } else {
         remoteCache = remote;
+        setCloudStatus("Cloud sync ON — " + remote.length + " booking(s) from Supabase. Polling every 3s.", true);
         try{
           const local = JSON.parse(localStorage.getItem("bookings")||"[]");
           const map = new Map();
@@ -291,7 +311,13 @@
   } catch (_) {}
   setInterval(() => {
     if (sessionStorage.getItem("rkk_admin_ok") === "1") loadAll(true);
-  }, 8000);
+  }, 3000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && sessionStorage.getItem("rkk_admin_ok") === "1") loadAll(true);
+  });
+  window.addEventListener("focus", () => {
+    if (sessionStorage.getItem("rkk_admin_ok") === "1") loadAll(true);
+  });
 
   unlock();
 })();
