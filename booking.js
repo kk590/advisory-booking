@@ -1,3 +1,66 @@
+/* rkk-mobile-css */
+(function injectMobileCSS(){
+  if (document.getElementById('rkk-mobile-css')) return;
+  var css = [
+    'html,body{overflow-x:hidden;width:100%;-webkit-text-size-adjust:100%}',
+    '@media (max-width:900px){',
+    '.cal-wrap{grid-template-columns:1fr !important}',
+    '.pay-layout{grid-template-columns:1fr !important}',
+    '.duration-grid{grid-template-columns:1fr !important}',
+    '}',
+    '@media (max-width:640px){',
+    '.header-inner{height:auto !important;min-height:64px;padding:.75rem 1rem !important;flex-wrap:wrap;gap:.5rem}',
+    '.brand{min-width:0;flex:1}',
+    '.brand-text h1{font-size:13px !important;line-height:1.2}',
+    '.brand-text p{font-size:9px !important}',
+    '.avatar{width:36px !important;height:48px !important}',
+    '.stepper-bar{padding:.75rem 1rem 0 !important}',
+    '.protocol-tag{font-size:9px !important;padding:3px 6px !important;letter-spacing:.08em !important}',
+    '.steps-grid{gap:3px !important}',
+    '.step-label{font-size:8px !important;letter-spacing:.04em !important}',
+    '.step-label span:first-child{font-size:7px !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}',
+    '.step-line{height:2px !important}',
+    'main{padding:1rem .875rem 3.5rem !important;max-width:100% !important}',
+    'h2.page-title{font-size:clamp(20px,6vw,28px) !important}',
+    '.page-desc{font-size:13px !important;max-width:100% !important}',
+    '.duration-card{padding:1.25rem !important}',
+    '.card-title{font-size:18px !important}',
+    '.price-block .amount{font-size:24px !important}',
+    '.price-block .amount.gold{font-size:26px !important}',
+    '.card-cta,.btn{min-height:44px !important;padding:12px 16px !important;font-size:11px !important}',
+    '.cal-wrap{padding:1rem !important;gap:1rem !important}',
+    '.slots{max-height:none !important}',
+    '.slot{min-height:44px !important;padding:12px !important;font-size:13px !important}',
+    '.fc .fc-toolbar-title{font-size:14px !important}',
+    '.fc .fc-button{padding:6px 10px !important;font-size:10px !important}',
+    '.fc .fc-daygrid-day-number{padding:4px !important;font-size:11px !important}',
+    'form{max-width:100% !important}',
+    'input{font-size:16px !important;padding:14px 12px !important;min-height:48px !important}',
+    '.pay-box{padding:1.25rem !important}',
+    '#qr img{width:160px !important;height:160px !important;max-width:100% !important}',
+    '#upiString{font-size:10px !important;max-width:100% !important;word-break:break-all}',
+    '.dossier{padding:1.25rem !important}',
+    '.dossier-header{margin:-1.25rem -1.25rem 1rem !important;padding:10px 1.25rem !important}',
+    '.nav{flex-direction:column !important;align-items:stretch !important}',
+    '.nav .btn,.nav a.btn{width:100% !important;justify-content:center !important;text-align:center}',
+    '.panel.center{padding-top:3vh !important;padding-left:.5rem !important;padding-right:.5rem !important}',
+    '.check{width:64px !important;height:64px !important}',
+    '.manifest{flex-direction:column !important;align-items:flex-start !important;padding:.875rem 1rem !important}',
+    '.summary-chip{font-size:10px !important;max-width:100% !important;word-break:break-word}',
+    '.privacy-note{max-width:100% !important}',
+    '}',
+    '@media (max-width:380px){',
+    '.step-label span:first-child{display:none !important}',
+    '.step-label span:last-child{margin:0 auto}',
+    '.protocol-tag{display:none !important}',
+    '}'
+  ].join('\n');
+  var s = document.createElement('style');
+  s.id = 'rkk-mobile-css';
+  s.textContent = css;
+  (document.head || document.documentElement).appendChild(s);
+})();
+/* /rkk-mobile-css */
 /* supabase helpers */
 const SUPABASE_URL=(window.SUPABASE_URL||"").trim();
 const SUPABASE_ANON_KEY=(window.SUPABASE_ANON_KEY||"").trim();
