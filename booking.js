@@ -1,57 +1,103 @@
-/* supabase helpers — cloud sync so mobile bookings appear on admin */
-const SUPABASE_URL=(window.SUPABASE_URL||"").trim();
-const SUPABASE_ANON_KEY=(window.SUPABASE_ANON_KEY||"").trim();
-let _sb=null;
-function getSupabase(){
-  if(_sb)return _sb;
-  if(!SUPABASE_URL||!SUPABASE_ANON_KEY||!window.supabase){
-    console.warn("[booking] Supabase not configured — bookings stay on this device only");
-    return null;
+/* Supabase SDK + API bridge — index.html untouched */
+const SUPABASE_URL = (window.SUPABASE_URL || "").trim();
+const SUPABASE_ANON_KEY = (window.SUPABASE_ANON_KEY || "").trim();
+let _sb = null;
+
+function getSupabase() {
+  if (_sb) return _sb;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !window.supabase) return null;
+  try {
+    _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+  } catch (e) {
+    console.warn("[booking] supabase client", e);
   }
-  try{_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY)}catch(e){console.warn(e)}
   return _sb;
 }
-async function supabaseUpsertBooking(booking){
-  const sb=getSupabase();
-  if(!sb)return false;
-  const row={
-    txn_id:String(booking.txnId||""),
-    booking_id:booking.bookingId||booking.id||"",
-    name:booking.name||"",
-    email:booking.email||"",
-    phone:String(booking.phone||""),
-    duration:Number(booking.duration)||null,
-    date:booking.date||"",
-    time:booking.time||"",
-    amount:Number(booking.amount)||0,
-    status:booking.status||"PENDING",
-    upi_note:booking.upiNote||"",
-    meet_link:booking.meetLink||"",
-    created_at:booking.at||new Date().toISOString()
-  };
-  if(!row.txn_id)return false;
-  try{
-    const{error}=await sb.from("bookings").upsert(row,{onConflict:"txn_id"});
-    if(error){
-      console.warn("supabase upsert",error);
-      const{error:e2}=await sb.from("bookings").insert(row);
-      if(e2){console.warn("supabase insert",e2);return false}
+
+async function apiBookings(method, body, query) {
+  const qs = query ? "?" + new URLSearchParams(query).toString() : "";
+  const opts = { method, headers: { "Content-Type": "application/json" }, cache: "no-store" };
+  if (body != null) opts.body = JSON.stringify(body);
+  const res = await fetch("/api/bookings" + qs, opts);
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  return { ok: res.ok && data && data.ok !== false, status: res.status, data };
+}
+
+async function supabaseUpsertBooking(booking) {
+  let sdkOk = false;
+  const sb = getSupabase();
+  if (sb) {
+    const row = {
+      txn_id: String(booking.txnId || ""),
+      booking_id: booking.bookingId || booking.id || "",
+      name: booking.name || "",
+      email: booking.email || "",
+      phone: String(booking.phone || ""),
+      duration: Number(booking.duration) || null,
+      date: booking.date || "",
+      time: booking.time || "",
+      amount: Number(booking.amount) || 0,
+      status: booking.status || "PENDING",
+      upi_note: booking.upiNote || "",
+      meet_link: booking.meetLink || "",
+      created_at: booking.at || new Date().toISOString()
+    };
+    if (row.txn_id) {
+      try {
+        const { error } = await sb.from("bookings").upsert(row, { onConflict: "txn_id" });
+        if (error) {
+          const { error: e2 } = await sb.from("bookings").insert(row);
+          if (!e2) sdkOk = true;
+          else console.warn("supabase upsert/insert", error, e2);
+        } else {
+          sdkOk = true;
+        }
+        if (sdkOk) console.info("[booking] SDK saved", row.txn_id);
+      } catch (e) {
+        console.warn(e);
+      }
     }
-    console.info("[booking] saved to Supabase",row.txn_id);
-    return true;
-  }catch(e){console.warn(e);return false}
+  }
+  try {
+    const { ok, data, status } = await apiBookings("POST", booking);
+    if (ok) {
+      console.info("[booking] API saved", booking.txnId);
+      return true;
+    }
+    if (status === 503) console.warn("[booking] API missing Vercel env:", data && data.message);
+    else console.warn("[booking] API save failed", status, data);
+  } catch (e) {
+    console.warn("[booking] API unreachable", e);
+  }
+  return sdkOk;
 }
-async function supabaseUpdateStatus(txnId,status,meetLink){
-  const sb=getSupabase();
-  if(!sb||!txnId)return false;
-  try{
-    const patch={status};
-    if(meetLink)patch.meet_link=meetLink;
-    const{error}=await sb.from("bookings").update(patch).eq("txn_id",String(txnId));
-    if(error){console.warn("supabase update",error);return false}
-    return true;
-  }catch(e){console.warn(e);return false}
+
+async function supabaseUpdateStatus(txnId, status, meetLink) {
+  let sdkOk = false;
+  const sb = getSupabase();
+  if (sb && txnId) {
+    try {
+      const patch = { status };
+      if (meetLink) patch.meet_link = meetLink;
+      const { error } = await sb.from("bookings").update(patch).eq("txn_id", String(txnId));
+      if (!error) sdkOk = true;
+      else console.warn("supabase update", error);
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  try {
+    const body = { txnId, status };
+    if (meetLink) body.meetLink = meetLink;
+    const { ok } = await apiBookings("PATCH", body);
+    if (ok) return true;
+  } catch (_) {}
+  return sdkOk;
 }
+
 function resolveMeetLink(time,duration){
   return (CONFIG.meetLinks&&CONFIG.meetLinks[time])||(CONFIG.meetLinks&&CONFIG.meetLinks[String(duration)])||CONFIG.defaultMeetLink||"";
 }
@@ -259,6 +305,19 @@ async function pollRemoteStatus(){
     if(local&&["CONFIRMED","confirmed","PAID","paid","verified","VERIFIED"].includes(String(local.status||local.paymentStatus||""))){markConfirmed();return}
   }catch(_){}
   try{
+    if(state.txnId){
+      const { ok, data } = await apiBookings("GET", null, { txnId: String(state.txnId) });
+      if(ok && data && data.bookings && data.bookings[0]){
+        const row = data.bookings[0];
+        if(["CONFIRMED","PAID","VERIFIED","confirmed","paid"].includes(String(row.status||""))){
+          if(row.meetLink) CONFIG.defaultMeetLink = row.meetLink;
+          markConfirmed();
+          return;
+        }
+      }
+    }
+  }catch(_){}
+  try{
     const sb=getSupabase();
     if(sb&&state.txnId){
       const{data}=await sb.from("bookings").select("status,meet_link").eq("txn_id",String(state.txnId)).maybeSingle();
@@ -351,18 +410,19 @@ try{
   y += 56;doc.setDrawColor(212,175,55);doc.setLineWidth(1);doc.setFillColor(17,17,19);doc.roundedRect(left, y, right-left, 48, 4, 4, "FD");
   doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(244,244,245);doc.text("Total Amount Paid", left+12, y+20);
   doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(161,161,170);doc.text("Payment status verified successfully", left+12, y+34);
-  doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(212,175,55);doc.text(currency+Number(amount||0).toLocaleString("en-IN"), right-12, y+30, {align:"right"});
-  y += 64;doc.setFillColor(17,17,19);doc.setDrawColor(51,51,54);doc.roundedRect(left, y, right-left, 90, 4, 4, "FD");
-  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(212,175,55);doc.text("Confirmation Notice:", left+12, y+18);
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(200,200,200);
-  var notice="This receipt confirms that the payment of "+currency+Number(amount||0).toLocaleString("en-IN")+" for Booking ID ("+bookingId+") has been marked as "+status+". The calendar invitation for ("+scheduled+") has been scheduled and dispatched to ("+clientEmail+").";
-  var nlines=doc.splitTextToSize(notice, right-left-24);doc.text(nlines, left+12, y+34);
-  doc.setTextColor(212,175,55);doc.setFontSize(9);doc.text("Google Meet: "+(meetLink||"-"), left+12, y+34+nlines.length*11+8);
-  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100,100,100);
-  doc.text(companyName+"  ·  Payment Receipt", left, H-28);doc.text("Page 1 of 1", right, H-28, {align:"right"});
-  doc.save("RKK-Payment-Receipt-"+(txnId!=="-"?txnId:Date.now())+".pdf");
-}catch(err){console.error(err);alert("Could not generate PDF: "+(err&&err.message?err.message:"error"));}
-}
+  doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(212,175,55);doc.text(currency+Number(amount||0).toLocaleString("en-IN"), right-12, y+28, {align:"right"});
+  y += 64;
+  doc.setFillColor(17,17,19);doc.setDrawColor(51,51,54);doc.roundedRect(left, y, right-left, 70, 4, 4, "FD");
+  doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(212,175,55);doc.text("Confirmation Notice", left+12, y+16);
+  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(161,161,170);
+  doc.text("This receipt confirms your payment and booking. Present TxnId for support.", left+12, y+32);
+  doc.setTextColor(212,175,55);doc.text("Google Meet", left+12, y+50);
+  doc.setTextColor(110,231,183);doc.text(String(meetLink||"-"), left+12, y+62);
+  doc.setFontSize(8);doc.setTextColor(100,100,100);doc.text("Generated by RKK Advisory Booking", left, H-28);
+  doc.save("Payment_Receipt_"+(bookingId||txnId)+".pdf");
+}catch(err){console.error(err);alert("Could not generate PDF. Try again.");}}
+window.downloadReceiptPdf=downloadReceiptPdf;
+window.generateFilledReceiptPdf=generateFilledReceiptPdf;
+if($("#btnDownloadReceipt"))$("#btnDownloadReceipt").addEventListener("click",downloadReceiptPdf);
+setInterval(pollRemoteStatus,4000);
 window.__payCheckInterval=setInterval(pollRemoteStatus,4000);
-document.addEventListener("click",function(e){var t=e.target;if(!t)return;if(t.id==="downloadReceipt"||(t.closest&&t.closest("#downloadReceipt"))){downloadReceiptPdf(e);}});
-$("#bookAgain").addEventListener("click",()=>location.reload());
