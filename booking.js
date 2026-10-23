@@ -101,6 +101,57 @@ async function supabaseUpdateStatus(txnId, status, meetLink) {
 function resolveMeetLink(time,duration){
   return (CONFIG.meetLinks&&CONFIG.meetLinks[time])||(CONFIG.meetLinks&&CONFIG.meetLinks[String(duration)])||CONFIG.defaultMeetLink||"";
 }
+
+/** Google Calendar template link (no API). Opens Add event with title, time, Meet, client details. */
+function toGCalLocal(dateStr, timeStr) {
+  const t = String(timeStr || "00:00").replace(/\s*IST.*/i, "").trim();
+  const [hh, mm] = t.split(":").map(x => String(x || "0").padStart(2, "0"));
+  const d = String(dateStr || "").replace(/-/g, "");
+  return d + "T" + hh + mm + "00";
+}
+function addMinutesToGCal(dateStr, timeStr, mins) {
+  const t = String(timeStr || "00:00").replace(/\s*IST.*/i, "").trim();
+  const [hh, mm] = t.split(":").map(Number);
+  let total = (hh || 0) * 60 + (mm || 0) + (Number(mins) || 30);
+  const dayAdd = Math.floor(total / (24 * 60));
+  total = total % (24 * 60);
+  const endH = String(Math.floor(total / 60)).padStart(2, "0");
+  const endM = String(total % 60).padStart(2, "0");
+  let d = String(dateStr || "");
+  if (dayAdd && d) {
+    const dt = new Date(d + "T12:00:00");
+    dt.setDate(dt.getDate() + dayAdd);
+    d = dt.toISOString().slice(0, 10);
+  }
+  return toGCalLocal(d, endH + ":" + endM);
+}
+function buildGoogleCalendarUrl(opts) {
+  const title = opts.title || "Consultation";
+  const start = toGCalLocal(opts.date, opts.time);
+  const end = addMinutesToGCal(opts.date, opts.time, opts.duration || 30);
+  const meet = opts.meetLink || CONFIG.defaultMeetLink || "";
+  const details = [
+    "Booking confirmed — RKK Advisory",
+    "Client: " + (opts.name || "-"),
+    "Email: " + (opts.email || "-"),
+    "Phone: " + (opts.phone || "-"),
+    "Duration: " + (opts.duration || "") + " min",
+    "TxnId: " + (opts.txnId || "-"),
+    "Booking ID: " + (opts.bookingId || "-"),
+    meet ? ("Google Meet: " + meet) : "",
+    "Timezone: Asia/Kolkata (IST)"
+  ].filter(Boolean).join("\n");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: start + "/" + end,
+    details: details,
+    location: meet || "Google Meet",
+    ctz: "Asia/Kolkata"
+  });
+  return "https://calendar.google.com/calendar/render?" + params.toString();
+}
+
 const CONFIG={
   vpa:"kkrakshan2006@okaxis",
   payeeName:"Rakshan Kamalakannan",
@@ -353,6 +404,36 @@ function markConfirmed(){
   $("#confirmMsg").textContent="Payment verified. Your session is confirmed for "+state.date+" at "+state.time+" IST.";
   $("#finalSummary").textContent=CONFIG.titles[state.duration]+" · "+state.date+" at "+state.time+" · "+fmtINR(amount)+" · CONFIRMED · TxnId "+(state.txnId||"")+" · "+(state.bookingId||"");
   $("#finalMeetLink").href=meetLink;
+  try{
+    const gcal = buildGoogleCalendarUrl({
+      title: (CONFIG.titles[state.duration]||"Consultation") + " — RKK",
+      date: state.date,
+      time: state.time,
+      duration: state.duration,
+      meetLink: meetLink,
+      name: state.details && state.details.name,
+      email: state.details && state.details.email,
+      phone: state.details && state.details.phone,
+      txnId: state.txnId,
+      bookingId: state.bookingId
+    });
+    let calBtn = document.getElementById("btnAddGoogleCalendar");
+    if(!calBtn){
+      const wrap = document.getElementById("finalMeetLink") && document.getElementById("finalMeetLink").parentElement;
+      calBtn = document.createElement("a");
+      calBtn.id = "btnAddGoogleCalendar";
+      calBtn.target = "_blank";
+      calBtn.rel = "noopener noreferrer";
+      calBtn.style.cssText = "display:inline-flex;margin-top:12px;padding:10px 16px;background:#D4AF37;color:#050505;font-weight:600;text-decoration:none;align-items:center;justify-content:center";
+      calBtn.textContent = "Add to Google Calendar";
+      if(wrap) wrap.appendChild(calBtn);
+      else {
+        const p5 = document.getElementById("panel-5");
+        if(p5) p5.appendChild(calBtn);
+      }
+    }
+    calBtn.href = gcal;
+  }catch(e){ console.warn("gcal", e); }
   goTo(5);
 }
 function downloadReceiptPdf(ev){if(ev){ev.preventDefault();ev.stopPropagation()}try{generateFilledReceiptPdf()}catch(_){generateFilledReceiptPdf()}}
