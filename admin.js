@@ -5,6 +5,7 @@
   const resultCount = $("#resultCount");
   let remoteCache = [];
   let loadingRemote = false;
+  let editingTxn = null;
 
   function unlock(){
     const ok = sessionStorage.getItem("rkk_admin_ok") === "1";
@@ -75,7 +76,7 @@
       phone: String(b.phone || ""),
       duration: b.duration || b.duration_min || "",
       date: b.date || "",
-      time: b.time || b.time_ist || "",
+      time: String(b.time || b.time_ist || "").replace(/\s*IST\s*/i,"").trim(),
       amount: b.amount != null ? b.amount : (b.amount_inr != null ? b.amount_inr : ""),
       status: String(b.status || b.paymentStatus || "PENDING").toUpperCase(),
       upiNote: b.upiNote || b.upi_note || "",
@@ -107,12 +108,133 @@
     const s = (status||"PENDING").toUpperCase();
     let cls = "pending";
     if(s==="PAID"||s==="CONFIRMED"||s==="VERIFIED") cls = "paid";
-    if(s==="REJECTED"||s==="CANCELLED") cls = "rejected";
+    if(s==="REJECTED"||s==="CANCELLED") cls = "cancelled";
     return `<span class="badge ${cls}">${s}</span>`;
   }
 
   function escapeHtml(s){
-    return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+  }
+
+  function persistLocal(row){
+    const list = localBookings();
+    const idx = list.findIndex(b =>
+      (row.txnId && String(b.txnId)===String(row.txnId)) ||
+      (row.bookingId && (String(b.id)===String(row.bookingId)||String(b.bookingId)===String(row.bookingId)))
+    );
+    const merged = Object.assign({}, idx>=0 ? list[idx] : {}, row);
+    if(idx>=0) list[idx] = merged; else list.push(merged);
+    localStorage.setItem("bookings", JSON.stringify(list));
+    try {
+      const inbox = JSON.parse(localStorage.getItem("rkk_admin_inbox")||"[]");
+      const i2 = inbox.findIndex(x => row.txnId && String(x.txnId)===String(row.txnId));
+      if(i2>=0) inbox[i2] = Object.assign({}, inbox[i2], row);
+      else inbox.unshift(row);
+      localStorage.setItem("rkk_admin_inbox", JSON.stringify(inbox.slice(0,200)));
+    } catch(_){}
+    remoteCache = remoteCache.map(r => {
+      if (row.txnId && String(r.txnId)===String(row.txnId)) return Object.assign({}, r, row);
+      return r;
+    });
+    if (!remoteCache.some(r => row.txnId && String(r.txnId)===String(row.txnId))) {
+      remoteCache.unshift(row);
+    }
+  }
+
+  async function pushToSupabase(row){
+    const sb = sbClient();
+    if(!sb || !row.txnId) return false;
+    const patch = {
+      status: row.status || "PENDING",
+      name: row.name || null,
+      email: row.email || null,
+      phone: row.phone || null,
+      date: row.date || null,
+      time: row.time || null,
+      duration: row.duration ? Number(row.duration) : null,
+      meet_link: row.meetLink || null,
+      booking_id: row.bookingId || row.id || null
+    };
+    try{
+      const { error } = await sb.from("bookings").update(patch).eq("txn_id", String(row.txnId));
+      if(error){ console.warn(error); return false; }
+      return true;
+    }catch(e){ console.warn(e); return false; }
+  }
+
+  function setStatus(row, status){
+    const next = Object.assign({}, normalize(row), { status: status, paymentStatus: status });
+    persistLocal(next);
+    pushToSupabase(next);
+    $("#statusSnippet").textContent = JSON.stringify({
+      txnId: next.txnId || undefined,
+      id: next.bookingId || next.id || undefined,
+      status: status,
+      date: next.date, time: next.time,
+      meetLink: next.meetLink || undefined
+    }, null, 2);
+    applyFilters();
+  }
+
+  function openEdit(row){
+    const b = normalize(row);
+    editingTxn = b.txnId;
+    $("#editTxnId").value = b.txnId || "";
+    $("#editName").value = b.name || "";
+    $("#editPhone").value = b.phone || "";
+    $("#editEmail").value = b.email || "";
+    $("#editMeet").value = b.meetLink || "";
+    $("#editDate").value = b.date || "";
+    let t = b.time || "";
+    if(/^\d{1,2}:\d{2}/.test(t)) t = t.slice(0,5);
+    $("#editTime").value = t;
+    $("#editDuration").value = String(b.duration || 30);
+    $("#editStatus").value = ["PENDING","CONFIRMED","CANCELLED","REJECTED"].includes(b.status) ? b.status : "PENDING";
+    $("#editErr").textContent = "";
+    $("#editPanel").classList.add("open");
+    $("#editPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function closeEdit(){
+    editingTxn = null;
+    $("#editPanel").classList.remove("open");
+    $("#editErr").textContent = "";
+  }
+
+  async function saveEdit(){
+    const txnId = ($("#editTxnId").value || editingTxn || "").trim();
+    if(!txnId){ $("#editErr").textContent = "Missing TxnId."; return; }
+    const name = ($("#editName").value || "").trim();
+    const phone = ($("#editPhone").value || "").replace(/\s+/g,"");
+    const email = ($("#editEmail").value || "").trim();
+    const date = ($("#editDate").value || "").trim();
+    let time = ($("#editTime").value || "").trim();
+    const duration = Number($("#editDuration").value) || 30;
+    const status = ($("#editStatus").value || "PENDING").toUpperCase();
+    const meetLink = ($("#editMeet").value || "").trim();
+    if(!name){ $("#editErr").textContent = "Name is required."; return; }
+    if(!phone){ $("#editErr").textContent = "Phone is required."; return; }
+    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ $("#editErr").textContent = "Invalid email."; return; }
+    if(!date){ $("#editErr").textContent = "Date is required."; return; }
+    if(!time){ $("#editErr").textContent = "Time is required."; return; }
+
+    const existing = localBookings().map(normalize).find(b => String(b.txnId)===String(txnId)) || {};
+    const next = Object.assign({}, existing, {
+      txnId, name, phone, email, date, time, duration, status,
+      paymentStatus: status, meetLink,
+      bookingId: existing.bookingId || existing.id || "",
+      amount: existing.amount
+    });
+    persistLocal(next);
+    const ok = await pushToSupabase(next);
+    $("#statusSnippet").textContent = JSON.stringify({
+      action: "updated",
+      txnId, name, phone, email, date, time, duration, status, meetLink,
+      cloud: ok ? "saved" : "local-only (check Supabase keys / RLS)"
+    }, null, 2);
+    $("#editErr").textContent = ok ? "" : "Saved locally. Cloud update failed — check Supabase.";
+    closeEdit();
+    applyFilters();
   }
 
   function render(list){
@@ -143,11 +265,21 @@
       const txn = `<span class="mono">${escapeHtml(b.txnId||"—")}</span><br/><span style="color:var(--muted);font-size:10px">${escapeHtml(b.bookingId||"")}</span>`;
       const amt = b.amount !== "" && b.amount != null ? "₹"+Number(b.amount).toLocaleString("en-IN") : "—";
       const slot = [b.date||"", timeLabel, dur].filter(Boolean).join(" · ");
-      const canAct = ["PENDING","UNVERIFIED"].includes(b.status);
-      const actions = canAct
-        ? `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">✓ Confirm</button>
-           <button type="button" class="btn danger" data-act="reject" data-i="${i}">✕ Reject</button>`
-        : `<span style="color:var(--ok);font-size:11px">${escapeHtml(b.status)}</span>`;
+      const isClosed = ["CANCELLED","REJECTED"].includes(b.status);
+      const canConfirm = ["PENDING","UNVERIFIED"].includes(b.status);
+      let actions = `<button type="button" class="btn ghost" data-act="edit" data-i="${i}">Edit</button>`;
+      if(canConfirm){
+        actions += `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">✓ Confirm</button>`;
+      }
+      if(!isClosed){
+        actions += `<button type="button" class="btn warn" data-act="cancel" data-i="${i}">Cancel</button>`;
+      }
+      if(b.status === "PENDING"){
+        actions += `<button type="button" class="btn danger" data-act="reject" data-i="${i}">✕ Reject</button>`;
+      }
+      if(isClosed){
+        actions += `<span style="color:var(--muted);font-size:11px">${escapeHtml(b.status)}</span>`;
+      }
       const trace = b.upiNote ? `<div class="trace" style="margin-top:6px">${escapeHtml(b.upiNote)}</div>` : "";
       return `<tr data-txn="${escapeHtml(b.txnId)}" data-id="${escapeHtml(b.bookingId)}">
         <td>${badge(b.status)}</td>
@@ -169,63 +301,14 @@
         if(!row) return;
         if(act === "confirm") setStatus(row, "CONFIRMED");
         if(act === "reject") setStatus(row, "REJECTED");
+        if(act === "cancel"){
+          if(confirm("Cancel this booking? The slot will be free for new clients.")){
+            setStatus(row, "CANCELLED");
+          }
+        }
+        if(act === "edit") openEdit(row);
       });
     });
-  }
-
-  function setStatus(row, status){
-    try{
-      const list = localBookings();
-      const idx = list.findIndex(b =>
-        (row.txnId && String(b.txnId)===String(row.txnId)) ||
-        (row.bookingId && (String(b.id)===String(row.bookingId)||String(b.bookingId)===String(row.bookingId)))
-      );
-      if(idx>=0){
-        list[idx].status = status;
-        list[idx].paymentStatus = status;
-        if (row.meetLink) list[idx].meetLink = row.meetLink;
-        localStorage.setItem("bookings", JSON.stringify(list));
-        try {
-          const inbox = JSON.parse(localStorage.getItem("rkk_admin_inbox")||"[]").map(x => {
-            if ((row.txnId && String(x.txnId)===String(row.txnId)) || (row.bookingId && String(x.bookingId||x.id)===String(row.bookingId))) {
-              x.status = status; x.paymentStatus = status;
-              if (row.meetLink) x.meetLink = row.meetLink;
-            }
-            return x;
-          });
-          localStorage.setItem("rkk_admin_inbox", JSON.stringify(inbox));
-        } catch(_){}
-      } else {
-        row.status = status;
-        row.paymentStatus = status;
-        list.push(row);
-        localStorage.setItem("bookings", JSON.stringify(list));
-      }
-      remoteCache = remoteCache.map(r => {
-        if (row.txnId && String(r.txnId)===String(row.txnId)) {
-          return Object.assign({}, r, { status, paymentStatus: status });
-        }
-        return r;
-      });
-    }catch(e){ console.warn(e); }
-
-    $("#statusSnippet").textContent = JSON.stringify({
-      txnId: row.txnId || undefined,
-      id: row.bookingId || row.id || undefined,
-      status: status,
-      meetLink: row.meetLink || undefined
-    }, null, 2);
-
-    try{
-      const sb = sbClient();
-      if(sb && row.txnId){
-        sb.from("bookings").update({ status: status, meet_link: row.meetLink || null }).eq("txn_id", String(row.txnId)).then(({error})=>{
-          if(error) console.warn(error);
-        });
-      }
-    }catch(_){}
-
-    applyFilters();
   }
 
   function applyFilters(){
@@ -295,6 +378,8 @@
   });
   $("#statusFilter").addEventListener("change", applyFilters);
   $("#q").addEventListener("keydown", e => { if(e.key==="Enter") doSearch(); });
+  $("#btnSaveEdit").addEventListener("click", saveEdit);
+  $("#btnCloseEdit").addEventListener("click", closeEdit);
 
   window.addEventListener("storage", (ev) => {
     if (ev.key === "bookings" || ev.key === "rkk_admin_inbox" || ev.key === "rkk_admin_inbox_ts") {
