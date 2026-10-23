@@ -31,6 +31,57 @@
     unlock();
   });
 
+  function toGCalLocal(dateStr, timeStr) {
+    const t = String(timeStr || "00:00").replace(/\s*IST.*/i, "").trim();
+    const parts = t.split(":");
+    const hh = String(parts[0] || "0").padStart(2, "0");
+    const mm = String(parts[1] || "0").padStart(2, "0");
+    const d = String(dateStr || "").replace(/-/g, "");
+    return d + "T" + hh + mm + "00";
+  }
+  function addMinutesToGCal(dateStr, timeStr, mins) {
+    const t = String(timeStr || "00:00").replace(/\s*IST.*/i, "").trim();
+    const parts = t.split(":").map(Number);
+    let total = (parts[0] || 0) * 60 + (parts[1] || 0) + (Number(mins) || 30);
+    const dayAdd = Math.floor(total / (24 * 60));
+    total = total % (24 * 60);
+    const endH = String(Math.floor(total / 60)).padStart(2, "0");
+    const endM = String(total % 60).padStart(2, "0");
+    let d = String(dateStr || "");
+    if (dayAdd && d) {
+      const dt = new Date(d + "T12:00:00");
+      dt.setDate(dt.getDate() + dayAdd);
+      d = dt.toISOString().slice(0, 10);
+    }
+    return toGCalLocal(d, endH + ":" + endM);
+  }
+  function buildGoogleCalendarUrl(opts) {
+    const title = opts.title || "Consultation — RKK";
+    const start = toGCalLocal(opts.date, opts.time);
+    const end = addMinutesToGCal(opts.date, opts.time, opts.duration || 30);
+    const meet = opts.meetLink || "https://meet.google.com/xvu-hssb-nem";
+    const details = [
+      "RKK Advisory booking",
+      "Client: " + (opts.name || "-"),
+      "Email: " + (opts.email || "-"),
+      "Phone: " + (opts.phone || "-"),
+      "Duration: " + (opts.duration || "") + " min",
+      "TxnId: " + (opts.txnId || "-"),
+      "Booking ID: " + (opts.bookingId || "-"),
+      "Google Meet: " + meet,
+      "Timezone: Asia/Kolkata (IST)"
+    ].join("\n");
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: title,
+      dates: start + "/" + end,
+      details: details,
+      location: meet,
+      ctz: "Asia/Kolkata"
+    });
+    return "https://calendar.google.com/calendar/render?" + params.toString();
+  }
+
   function sbClient(){
     if(!window.supabase || !(window.SUPABASE_URL||"").trim() || !(window.SUPABASE_ANON_KEY||"").trim()) return null;
     try {
@@ -207,13 +258,29 @@
     const next = Object.assign({}, normalize(row), { status: status, paymentStatus: status });
     persistLocal(next);
     pushToSupabase(next);
+    const gcal = buildGoogleCalendarUrl({
+      title: "Session with " + (next.name || "client") + " — RKK",
+      date: next.date,
+      time: next.time,
+      duration: next.duration || 30,
+      meetLink: next.meetLink || "https://meet.google.com/xvu-hssb-nem",
+      name: next.name,
+      email: next.email,
+      phone: next.phone,
+      txnId: next.txnId,
+      bookingId: next.bookingId
+    });
     $("#statusSnippet").textContent = JSON.stringify({
       txnId: next.txnId || undefined,
       id: next.bookingId || next.id || undefined,
       status: status,
       date: next.date, time: next.time,
-      meetLink: next.meetLink || undefined
+      meetLink: next.meetLink || undefined,
+      googleCalendar: gcal
     }, null, 2);
+    if (status === "CONFIRMED") {
+      try { window.open(gcal, "_blank", "noopener,noreferrer"); } catch(_){}
+    }
     applyFilters();
   }
 
@@ -308,7 +375,8 @@
       const slot = [b.date||"", timeLabel, dur].filter(Boolean).join(" · ");
       const isClosed = ["CANCELLED","REJECTED"].includes(b.status);
       const canConfirm = ["PENDING","UNVERIFIED"].includes(b.status);
-      let actions = `<button type="button" class="btn ghost" data-act="edit" data-i="${i}">Edit</button>`;
+      let actions = `<button type="button" class="btn ghost" data-act="edit" data-i="${i}">Edit</button>
+      <a class="btn ghost" data-act="gcal" data-i="${i}" href="#" target="_blank" rel="noopener" style="text-decoration:none">Calendar</a>`;
       if(canConfirm){
         actions += `<button type="button" class="btn ok" data-act="confirm" data-i="${i}">✓ Confirm</button>`;
       }
@@ -348,6 +416,22 @@
           }
         }
         if(act === "edit") openEdit(row);
+        if(act === "gcal"){
+          const url = buildGoogleCalendarUrl({
+            title: "Session with " + (row.name || "client") + " — RKK",
+            date: row.date,
+            time: row.time,
+            duration: row.duration || 30,
+            meetLink: row.meetLink || "https://meet.google.com/xvu-hssb-nem",
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+            txnId: row.txnId,
+            bookingId: row.bookingId
+          });
+          btn.href = url;
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
       });
     });
   }
