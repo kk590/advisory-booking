@@ -11,7 +11,7 @@
 <style>
 :root{--canvas:#050505;--charcoal:#111113;--surface:#1a1a1c;--border:#333336;--text:#f4f4f5;--muted:#a1a1aa;--primary:#D4AF37;--gold:#FFFDD0;--on-primary:#050505;--error:#ffb4ab;--ok:#6ee7b7;--warn:#fbbf24}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--canvas);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased}
+body{background:var(--canvas);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 header{border-bottom:1px solid var(--border);background:rgba(5,5,5,.92);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
 .header-inner{max-width:1100px;margin:0 auto;padding:0 1.25rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .brand{font-family:'Syne',sans-serif;font-weight:700;font-size:15px}
@@ -25,7 +25,7 @@ label{display:flex;flex-direction:column;gap:6px;font-size:10px;letter-spacing:.
 input,select{background:var(--canvas);border:1px solid var(--border);color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;width:100%}
 input:focus,select:focus{outline:none;border-color:var(--primary)}
 .row{display:grid;grid-template-columns:1fr;gap:10px}
-@media(min-width:640px){.row.cols-3{grid-template-columns:1fr 1fr auto}.row.cols-2{grid-template-columns:1fr 1fr}}
+@media(min-width:640px){.row.cols-3{grid-template-columns:1fr 1fr auto}.row.cols-2{grid-template-columns:1fr 1fr}.row.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}}
 .btn{border:none;padding:10px 16px;font-family:inherit;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn.primary{background:var(--primary);color:var(--on-primary)}
 .btn.primary:hover{background:#c19b2e}
@@ -33,12 +33,13 @@ input:focus,select:focus{outline:none;border-color:var(--primary)}
 .btn.ghost:hover{border-color:var(--primary);color:var(--primary)}
 .btn.ok{background:rgba(110,231,183,.15);color:var(--ok);border:1px solid rgba(110,231,183,.35)}
 .btn.danger{background:rgba(255,180,171,.1);color:var(--error);border:1px solid rgba(255,180,171,.3)}
+.btn.warn{background:rgba(251,191,36,.12);color:var(--warn);border:1px solid rgba(251,191,36,.35)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .badge{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--border)}
 .badge.pending{color:var(--warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
 .badge.paid,.badge.confirmed{color:var(--ok);border-color:rgba(110,231,183,.4);background:rgba(110,231,183,.08)}
-.badge.rejected{color:var(--error);border-color:rgba(255,180,171,.4);background:rgba(255,180,171,.08)}
+.badge.rejected,.badge.cancelled{color:var(--error);border-color:rgba(255,180,171,.4);background:rgba(255,180,171,.08)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:8px 6px;border-bottom:1px solid var(--border)}
@@ -50,6 +51,14 @@ tr:hover td{background:rgba(212,175,55,.04)}
 .err{color:var(--error);font-size:12px;min-height:16px;margin-top:8px}
 .hint{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
 .trace{background:var(--canvas);border:1px solid var(--border);padding:10px 12px;font-size:11px;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--gold)}
+#editPanel{display:none;border-color:rgba(212,175,55,.45)}
+#editPanel.open{display:block}
+@media(max-width:640px){
+  main{padding:1rem .875rem 2.5rem}
+  .header-inner{padding:0 1rem}
+  .btn{min-height:40px}
+  input,select{font-size:16px;min-height:44px}
+}
 </style>
 </head>
 <body>
@@ -71,8 +80,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
 
   <div id="app" style="display:none">
     <h2>Booking Trace</h2>
-    <p class="sub">All client details stay listed here (from <strong>Supabase</strong> when configured). Search filters the list; it does not clear data.
-      Match <strong>TxnId</strong> with UPI notes like <code>BOOKING-TxnId-Phone-Name</code>. Each row shows name, phone, email, date, time, duration, and Meet link.</p>
+    <p class="sub">Confirm, <strong>edit client / schedule</strong> (busy calendar), or <strong>cancel</strong> a booking. Cancelled slots free up for new bookings. Changes save to Supabase when configured.</p>
 
     <section class="card">
       <h3>Search / filter</h3>
@@ -86,6 +94,7 @@ tr:hover td{background:rgba(212,175,55,.04)}
             <option value="PENDING">PENDING</option>
             <option value="CONFIRMED">CONFIRMED</option>
             <option value="PAID">PAID</option>
+            <option value="CANCELLED">CANCELLED</option>
             <option value="REJECTED">REJECTED</option>
           </select>
         </label>
@@ -95,6 +104,39 @@ tr:hover td{background:rgba(212,175,55,.04)}
           <button type="button" class="btn ghost" id="btnAll">Show all</button>
         </div>
       </div>
+    </section>
+
+    <section class="card" id="editPanel">
+      <h3>Edit booking / reschedule</h3>
+      <p class="hint" style="margin-top:0;margin-bottom:12px">Update client details or move the slot when your schedule is busy. TxnId stays the same for UPI matching.</p>
+      <input type="hidden" id="editTxnId" />
+      <div class="row cols-2">
+        <label>Name *<input type="text" id="editName" autocomplete="name" /></label>
+        <label>Phone *<input type="tel" id="editPhone" autocomplete="tel" /></label>
+        <label>Email *<input type="email" id="editEmail" autocomplete="email" /></label>
+        <label>Meet link<input type="url" id="editMeet" placeholder="https://meet.google.com/..." /></label>
+        <label>Date (YYYY-MM-DD)<input type="date" id="editDate" /></label>
+        <label>Time (HH:MM IST)<input type="time" id="editTime" step="900" /></label>
+        <label>Duration
+          <select id="editDuration">
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="editStatus">
+            <option value="PENDING">PENDING</option>
+            <option value="CONFIRMED">CONFIRMED</option>
+            <option value="CANCELLED">CANCELLED</option>
+            <option value="REJECTED">REJECTED</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="btnSaveEdit">Save changes</button>
+        <button type="button" class="btn ghost" id="btnCloseEdit">Close</button>
+      </div>
+      <p class="err" id="editErr"></p>
     </section>
 
     <section class="card">
@@ -119,8 +161,8 @@ tr:hover td{background:rgba(212,175,55,.04)}
     </section>
 
     <section class="card">
-      <h3>Manual confirm helper</h3>
-      <p class="hint">After matching UPI, set status to CONFIRMED here. Status is saved to Supabase when configured.</p>
+      <h3>Last action</h3>
+      <p class="hint">Confirm after matching UPI. Cancel frees the slot for new clients.</p>
       <div class="trace" id="statusSnippet">{ "txnId": "…", "status": "CONFIRMED" }</div>
     </section>
   </div>
