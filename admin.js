@@ -33,11 +33,36 @@
 
   function sbClient(){
     if(!window.supabase || !(window.SUPABASE_URL||"").trim() || !(window.SUPABASE_ANON_KEY||"").trim()) return null;
-    try { return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY); }
-    catch(e){ console.warn(e); return null; }
+    try {
+      return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+    } catch(e){ console.warn(e); return null; }
+  }
+
+  async function apiBookings(method, body, query){
+    const qs = query ? "?" + new URLSearchParams(query).toString() : "";
+    const opts = { method, headers: { "Content-Type": "application/json" }, cache: "no-store" };
+    if (body != null) opts.body = JSON.stringify(body);
+    try {
+      const res = await fetch("/api/bookings" + qs, opts);
+      let data = null;
+      try { data = await res.json(); } catch(_){}
+      return { ok: res.ok && data && data.ok !== false, status: res.status, data };
+    } catch(e) {
+      return { ok: false, status: 0, data: { error: String(e) } };
+    }
   }
 
   async function loadFromSupabase(){
+    try{
+      const { ok, data, status } = await apiBookings("GET");
+      if(ok && data && Array.isArray(data.bookings)){
+        return data.bookings;
+      }
+      if(status === 503) console.warn("[admin] API missing Vercel Supabase env");
+    }catch(e){ console.warn("[admin] API list", e); }
+
     const sb = sbClient();
     if(!sb) return null;
     try{
@@ -113,7 +138,7 @@
   }
 
   function escapeHtml(s){
-    return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+    return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   function persistLocal(row){
@@ -142,8 +167,24 @@
   }
 
   async function pushToSupabase(row){
+    if(!row.txnId) return false;
+    try{
+      const { ok } = await apiBookings("PATCH", {
+        txnId: row.txnId,
+        status: row.status || "PENDING",
+        name: row.name || null,
+        email: row.email || null,
+        phone: row.phone || null,
+        date: row.date || null,
+        time: row.time || null,
+        duration: row.duration ? Number(row.duration) : null,
+        meetLink: row.meetLink || null,
+        bookingId: row.bookingId || row.id || null
+      });
+      if(ok) return true;
+    }catch(_){}
     const sb = sbClient();
-    if(!sb || !row.txnId) return false;
+    if(!sb) return false;
     const patch = {
       status: row.status || "PENDING",
       name: row.name || null,
@@ -243,7 +284,7 @@
       const hasSb = !!(window.SUPABASE_URL||"").trim() && !!(window.SUPABASE_ANON_KEY||"").trim();
       const hint = hasSb
         ? "No bookings yet. New bookings from the site are stored in Supabase and will appear here."
-        : "No bookings in this browser. Set SUPABASE_URL and SUPABASE_ANON_KEY in supabase-config.js so bookings persist across devices.";
+        : "No bookings yet. Set Vercel env SUPABASE_URL + SUPABASE_ANON_KEY (or supabase-config.js) so mobile bookings appear.";
       tbody.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(hint)}</td></tr>`;
       return;
     }
@@ -337,11 +378,18 @@
     try{
       const hasKeys = !!(window.SUPABASE_URL||"").trim() && !!(window.SUPABASE_ANON_KEY||"").trim();
       if(!hasKeys){
-        setCloudStatus("Cloud sync OFF — mobile bookings will not appear here. Put SUPABASE_URL and SUPABASE_ANON_KEY in supabase-config.js, then redeploy.", false);
+        setCloudStatus("Cloud sync checking… Set SUPABASE_URL + SUPABASE_ANON_KEY in Vercel env (or supabase-config.js), run SQL schema, then redeploy.", false);
       }
       const remote = await loadFromSupabase();
       if(remote === null){
-        if(hasKeys) setCloudStatus("Cloud sync error — check Supabase URL, anon key, and RLS policies.", false);
+        if(hasKeys) setCloudStatus("Cloud sync error — check Supabase URL, anon key, RLS, or Vercel env on /api/bookings.", false);
+        else {
+          apiBookings("GET").then(({ok,status,data})=>{
+            if(ok) setCloudStatus("Cloud sync ON via API — " + ((data&&data.bookings)||[]).length + " booking(s).", true);
+            else if(status===503) setCloudStatus("Cloud sync OFF — add SUPABASE_URL and SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables, then Redeploy.", false);
+            else setCloudStatus("Cloud sync OFF — API status "+status+". Create bookings table (supabase-schema.sql) and set env keys.", false);
+          });
+        }
       } else {
         remoteCache = remote;
         setCloudStatus("Cloud sync ON — " + remote.length + " booking(s) from Supabase. Polling every 3s.", true);
