@@ -43,7 +43,7 @@ th{color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:upperc
     <h1>Bookings database</h1>
     <p class="sub">Past and new records from Supabase. Confirm PAID only after UPI credit on your phone.</p>
     <div class="toolbar">
-      <input class="search" type="search" id="qInput" placeholder="Search name / phone / txn…" />
+      <input class="search" type="search" id="qInput" placeholder="Search name / phone / booking id…" />
       <button type="button" class="btn-ghost" id="btnRefresh">Refresh</button>
       <button type="button" class="btn-ghost" id="btnLogout">Lock</button>
       <span class="meta" id="adminMeta">—</span>
@@ -81,12 +81,16 @@ async function load(){
     const list=data.bookings||[];
     adminMeta.textContent=list.length+" record(s) · "+new Date().toLocaleTimeString();
     if(!list.length){tableWrap.innerHTML="<p class='empty'>No bookings yet.</p>";return}
-    tableWrap.innerHTML="<table><thead><tr><th>When</th><th>Client</th><th>Session</th><th>Amount</th><th>Status</th><th>Txn</th><th>Actions</th></tr></thead><tbody>"+
+    tableWrap.innerHTML="<table><thead><tr><th>When</th><th>Client</th><th>Session</th><th>Amount</th><th>Status</th><th>Booking ID</th><th>Actions</th></tr></thead><tbody>"+
       list.map(b=>{
-        const st=norm(b.status);const txn=b.txnId||b.txn_id||"";const created=b.at?new Date(b.at).toLocaleString():"";
+        const st=norm(b.status);
+        const txn=b.txnId||b.txn_id||"";
+        const bookingId=b.bookingId||b.booking_id||b.id||"";
+        const idLabel=bookingId||txn||"—";
+        const created=b.at?new Date(b.at).toLocaleString():"";
         return "<tr><td>"+esc(b.date)+" "+esc(b.time)+(created?"<br><span style='color:var(--muted);font-size:10px'>"+esc(created)+"</span>":"")+
           "</td><td>"+esc(b.name)+"<br><span style='color:var(--muted)'>"+esc(b.phone)+"</span><br><span style='color:var(--muted)'>"+esc(b.email||"")+"</span></td><td>"+(b.duration||"—")+" min</td><td>₹"+Number(b.amount||0).toLocaleString("en-IN")+
-          "</td><td><span class='pill "+st+"'>"+st+"</span></td><td style='font-size:10px;color:var(--muted);max-width:120px;word-break:break-all'>"+esc(txn)+"</td><td class='actions'>"+
+          "</td><td><span class='pill "+st+"'>"+st+"</span></td><td style='font-size:11px;color:var(--gold);max-width:160px;word-break:break-all;font-weight:600'>"+esc(idLabel)+"</td><td class='actions'>"+
           (st!=="PAID"?"<button class='btn-ok' data-act='PAID' data-id='"+esc(txn)+"'>Mark PAID</button>":"")+
           (st!=="PENDING"?"<button class='btn-ghost' data-act='PENDING' data-id='"+esc(txn)+"'>Pending</button>":"")+
           (st!=="CANCELLED"?"<button class='btn-ghost' data-act='CANCELLED' data-id='"+esc(txn)+"'>Cancel</button>":"")+
@@ -97,7 +101,7 @@ async function load(){
   }
 }
 async function update(txnId,status){
-  if(!txnId){alert("Missing txn");return}
+  if(!txnId){alert("Missing booking reference");return}
   if(status==="PAID"&&!confirm("Confirm you received this UPI payment?"))return;
   try{
     const res=await fetch(API,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({txnId,status})});
