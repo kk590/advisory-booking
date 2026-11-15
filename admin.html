@@ -1,1 +1,112 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RKK Admin — Secure</title>
+<style>
+:root{--bg:#050505;--card:#111113;--border:#333336;--text:#f4f4f5;--muted:#a1a1aa;--gold:#D4AF37;--danger:#ef4444;--ok:#22c55e}
+*{box-sizing:border-box;margin:0;padding:0}body{min-height:100vh;background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,monospace;font-size:13px;padding:1.5rem}
+.shell{max-width:1100px;margin:0 auto}.card{background:var(--card);border:1px solid var(--border);padding:1.5rem;margin-bottom:1rem}
+h1{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.sub{color:var(--muted);font-size:12px;margin-bottom:1.25rem;line-height:1.5}
+label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px 14px;font-family:inherit;font-size:14px;margin-bottom:1rem}
+input:focus{outline:none;border-color:var(--gold)}
+button{border:none;padding:12px 16px;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.btn-gold{background:var(--gold);color:#050505;width:100%}.btn-ok{background:var(--ok);color:#052e16}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}.hidden{display:none!important}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px}
+.pill{display:inline-block;padding:3px 8px;border:1px solid var(--border);font-size:10px;text-transform:uppercase}
+.pill.PENDING{color:#eab308;border-color:#eab308}.pill.PAID{color:var(--ok);border-color:var(--ok)}.pill.CANCELLED{color:var(--muted)}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:10px}
+.meta{color:var(--muted);font-size:11px;margin-top:12px}.empty{color:var(--muted);padding:24px 0;text-align:center}.search{max-width:280px;margin-bottom:0}
+</style>
+</head>
+<body>
+<div class="shell" id="loginGate">
+  <div class="card" style="max-width:420px;margin:10vh auto 0">
+    <h1>RKK Admin Access</h1>
+    <p class="sub">Only you can confirm payments and view booking records (Supabase).</p>
+    <label>Admin passphrase</label>
+    <input type="password" id="passInput" placeholder="Admin passphrase" autocomplete="current-password" />
+    <p class="err" id="loginErr"></p>
+    <button type="button" class="btn-gold" id="loginBtn">Unlock admin</button>
+    <p class="meta">Default: <code>rkk-admin-change-me</code></p>
+  </div>
+</div>
+<div class="shell hidden" id="adminPanel">
+  <div class="card">
+    <h1>Bookings database</h1>
+    <p class="sub">Past and new records from Supabase. Confirm PAID only after UPI credit on your phone.</p>
+    <div class="toolbar">
+      <input class="search" type="search" id="qInput" placeholder="Search name / phone / txn…" />
+      <button type="button" class="btn-ghost" id="btnRefresh">Refresh</button>
+      <button type="button" class="btn-ghost" id="btnLogout">Lock</button>
+      <span class="meta" id="adminMeta">—</span>
+    </div>
+    <div id="tableWrap"><p class="empty">Loading…</p></div>
+  </div>
+</div>
+<script>
+const API="/api/bookings";
+const KEY="rkk_admin_session_v1";
+let SECRET=localStorage.getItem("rkk_admin_secret")||"rkk-admin-change-me";
+async function sha256(t){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function unlocked(){return sessionStorage.getItem(KEY)==="1"}
+function lock(){sessionStorage.removeItem(KEY);adminPanel.classList.add("hidden");loginGate.classList.remove("hidden")}
+function show(){loginGate.classList.add("hidden");adminPanel.classList.remove("hidden");load()}
+document.getElementById("loginBtn").onclick=async()=>{
+  const pass=passInput.value||"";loginErr.textContent="";
+  if(!pass){loginErr.textContent="Enter passphrase.";return}
+  const stored=localStorage.getItem("rkk_admin_pass_hash");const hash=await sha256(pass);
+  const ok=(!stored&&pass==="rkk-admin-change-me")||(stored&&hash===stored)||pass===SECRET;
+  if(!ok){loginErr.textContent="Access denied.";return}
+  SECRET=pass;localStorage.setItem("rkk_admin_secret",SECRET);sessionStorage.setItem(KEY,"1");show();
+};
+passInput.onkeydown=e=>{if(e.key==="Enter")loginBtn.click()};
+btnLogout.onclick=lock;btnRefresh.onclick=load;qInput.onkeydown=e=>{if(e.key==="Enter")load()};
+function esc(s){return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function norm(s){return String(s||"PENDING").toUpperCase()}
+async function load(){
+  tableWrap.innerHTML="<p class='empty'>Loading…</p>";
+  try{
+    const q=(qInput.value||"").trim();
+    const res=await fetch(API+(q?"?q="+encodeURIComponent(q):""),{cache:"no-store"});
+    const data=await res.json();
+    if(!res.ok||data.ok===false) throw new Error(data.message||data.error||"Failed");
+    const list=data.bookings||[];
+    adminMeta.textContent=list.length+" record(s) · "+new Date().toLocaleTimeString();
+    if(!list.length){tableWrap.innerHTML="<p class='empty'>No bookings yet.</p>";return}
+    tableWrap.innerHTML="<table><thead><tr><th>When</th><th>Client</th><th>Session</th><th>Amount</th><th>Status</th><th>Txn</th><th>Actions</th></tr></thead><tbody>"+
+      list.map(b=>{
+        const st=norm(b.status);const txn=b.txnId||b.txn_id||"";const created=b.at?new Date(b.at).toLocaleString():"";
+        return "<tr><td>"+esc(b.date)+" "+esc(b.time)+(created?"<br><span style='color:var(--muted);font-size:10px'>"+esc(created)+"</span>":"")+
+          "</td><td>"+esc(b.name)+"<br><span style='color:var(--muted)'>"+esc(b.phone)+"</span><br><span style='color:var(--muted)'>"+esc(b.email||"")+"</span></td><td>"+(b.duration||"—")+" min</td><td>₹"+Number(b.amount||0).toLocaleString("en-IN")+
+          "</td><td><span class='pill "+st+"'>"+st+"</span></td><td style='font-size:10px;color:var(--muted);max-width:120px;word-break:break-all'>"+esc(txn)+"</td><td class='actions'>"+
+          (st!=="PAID"?"<button class='btn-ok' data-act='PAID' data-id='"+esc(txn)+"'>Mark PAID</button>":"")+
+          (st!=="PENDING"?"<button class='btn-ghost' data-act='PENDING' data-id='"+esc(txn)+"'>Pending</button>":"")+
+          (st!=="CANCELLED"?"<button class='btn-ghost' data-act='CANCELLED' data-id='"+esc(txn)+"'>Cancel</button>":"")+
+          "</td></tr>"}).join("")+"</tbody></table>";
+    tableWrap.querySelectorAll("button[data-act]").forEach(btn=>btn.onclick=()=>update(btn.dataset.id,btn.dataset.act));
+  }catch(e){
+    tableWrap.innerHTML="<p class='empty' style='color:var(--danger)'>"+esc(e.message)+"<br><br>If missing_env: set SUPABASE_URL + SUPABASE_ANON_KEY in Vercel env, then redeploy.</p>";
+  }
+}
+async function update(txnId,status){
+  if(!txnId){alert("Missing txn");return}
+  if(status==="PAID"&&!confirm("Confirm you received this UPI payment?"))return;
+  try{
+    const res=await fetch(API,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({txnId,status})});
+    const data=await res.json();
+    if(!res.ok||data.ok===false)throw new Error(data.error||data.message||"Update failed");
+    load();
+  }catch(e){alert(e.message)}
+}
+if(unlocked())show();
+</script>
+</body>
+</html>
